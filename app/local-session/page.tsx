@@ -1,0 +1,999 @@
+"use client"
+
+import { useState, useEffect, useCallback } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import {
+  Users,
+  Plus,
+  Minus,
+  DollarSign,
+  ImageIcon,
+  XCircle,
+  Check,
+  Copy,
+  MessageCircle,
+  Instagram,
+  Share2,
+  Loader2,
+  Sparkles,
+  MessageSquare,
+  DiscIcon as Discord,
+  CreditCard,
+  Trash2,
+} from "lucide-react"
+import { GlassCard } from "@/components/ui/glass-card"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog"
+// Removed: import { Slider } from "@/components/ui/slider"
+
+interface ReceiptData {
+  restaurant_info: {
+    name: string
+    address?: string
+    date?: string
+    time?: string
+    transaction_id?: string // Added transaction_id
+  }
+  items: Array<{
+    name: string
+    quantity: number
+    unit_price: number
+    total_price: number
+    category_guess?: string
+    sharing_potential?: number
+  }>
+  summary: {
+    subtotal?: number
+    tax?: number
+    service_charge?: number
+    discount?: number
+    ppn?: number // Added PPN
+    points_redeemed?: number // Added Points
+    total: number
+  }
+  payment_info?: {
+    // Added payment_info
+    method?: string
+    card_last_digits?: string
+  }
+}
+
+interface UserDisplay {
+  id: string
+  name: string
+  avatar: string
+  color: string
+  total: number
+}
+
+interface ItemDisplay {
+  id: string
+  name: string
+  quantity: number
+  unit_price: number
+  total_price: number
+  category_guess?: string
+  sharing_potential?: number
+  claimedBy: string[] // user_name
+  portions: { [userId: string]: number } // userId -> portion (representing units claimed for shareable, or 1 for personal)
+  imageUrl?: string // For product image
+}
+
+// Define a type for a saved session
+interface SavedSession {
+  id: string
+  timestamp: number
+  restaurantName: string
+  totalAmount: number
+  receiptData: ReceiptData
+  items: ItemDisplay[]
+  users: UserDisplay[]
+}
+
+const USER_COLORS = [
+  "from-purple-500 to-purple-600",
+  "from-blue-500 to-blue-600",
+  "from-green-500 to-green-600",
+  "from-pink-500 to-pink-600",
+  "from-orange-500 to-orange-600",
+  "from-red-500 to-red-600",
+]
+
+export default function LocalSessionPage() {
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null)
+  const [users, setUsers] = useState<UserDisplay[]>([])
+  const [items, setItems] = useState<ItemDisplay[]>([])
+  const [newUserName, setNewUserName] = useState("")
+  const [isAddingUser, setIsAddingUser] = useState(false)
+  const [isAddingManualItem, setIsAddingManualItem] = useState(false) // State for manual item dialog
+  const [newManualItem, setNewManualItem] = useState({
+    name: "",
+    quantity: 1,
+    unit_price: 0,
+    total_price: 0,
+    sharing_potential: 0.5,
+  })
+  const [isFinalized, setIsFinalized] = useState(false)
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false) // State for AI Chat dialog
+
+  useEffect(() => {
+    const storedReceipt = sessionStorage.getItem("localReceiptData")
+    if (storedReceipt) {
+      const parsedReceipt: ReceiptData = JSON.parse(storedReceipt)
+      setReceiptData(parsedReceipt)
+
+      // Initialize items with unique IDs and empty claims/portions
+      const initialItems: ItemDisplay[] = parsedReceipt.items.map((item, index) => ({
+        ...item,
+        id: `item-${index}-${Math.random().toString(36).substring(7)}`, // Unique ID for local items
+        claimedBy: [],
+        portions: {},
+        imageUrl: `/placeholder.svg?height=64&width=64`, // Placeholder image
+      }))
+      setItems(initialItems)
+
+      // Initialize with one default user if no users exist
+      if (users.length === 0) {
+        setUsers([
+          {
+            id: "local-user-1",
+            name: "Anda",
+            avatar: "A",
+            color: USER_COLORS[0],
+            total: 0,
+          },
+        ])
+      }
+    } else {
+      // Redirect if no receipt data is found
+      // router.push("/"); // Uncomment if you want to redirect back to scan page
+    }
+  }, [])
+
+  // Recalculate user totals whenever items or users change
+  useEffect(() => {
+    setUsers((prevUsers) =>
+      prevUsers.map((user) => ({
+        ...user,
+        total: calculateUserTotal(user.id),
+      })),
+    )
+  }, [items, users.length])
+
+  const generateUserColor = useCallback((index: number) => {
+    return USER_COLORS[index % USER_COLORS.length]
+  }, [])
+
+  const handleAddUser = () => {
+    if (newUserName.trim() === "") return
+    const newUser: UserDisplay = {
+      id: `local-user-${users.length + 1}-${Math.random().toString(36).substring(7)}`,
+      name: newUserName.trim(),
+      avatar: newUserName.trim().charAt(0).toUpperCase(),
+      color: generateUserColor(users.length),
+      total: 0,
+    }
+    setUsers((prev) => [...prev, newUser])
+    setNewUserName("")
+    setIsAddingUser(false)
+  }
+
+  const handleRemoveUser = (userIdToRemove: string) => {
+    setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userIdToRemove))
+    setItems((prevItems) =>
+      prevItems.map((item) => {
+        const newPortions = { ...item.portions }
+        delete newPortions[userIdToRemove]
+        const newClaimedBy = item.claimedBy.filter((name) => name !== users.find((u) => u.id === userIdToRemove)?.name)
+        return { ...item, portions: newPortions, claimedBy: newClaimedBy }
+      }),
+    )
+  }
+
+  // Consolidated function for updating portions and claims
+  const updatePortion = (itemId: string, userId: string, newPortion: number) => {
+    setItems((prevItems) =>
+      prevItems.map((item) => {
+        if (item.id === itemId) {
+          const userObj = users.find((u) => u.id === userId)
+          if (!userObj) return item
+
+          const newPortions = { ...item.portions }
+          let newClaimedBy = [...item.claimedBy]
+
+          if (newPortion <= 0) {
+            delete newPortions[userId]
+            newClaimedBy = newClaimedBy.filter((name) => name !== userObj.name)
+          } else {
+            // Ensure portion doesn't exceed item quantity
+            newPortion = Math.min(newPortion, item.quantity)
+            newPortions[userId] = newPortion
+            if (!newClaimedBy.includes(userObj.name)) {
+              newClaimedBy.push(userObj.name)
+            }
+          }
+          return { ...item, portions: newPortions, claimedBy: newClaimedBy }
+        }
+        return item
+      }),
+    )
+  }
+
+  const handleClaimAllUnits = (itemId: string, userId: string) => {
+    setItems((prevItems) =>
+      prevItems.map((item) => {
+        if (item.id === itemId) {
+          const newPortions: { [userId: string]: number } = {}
+          const newClaimedBy: string[] = []
+
+          // Set the clicked user's portion to the full quantity
+          newPortions[userId] = item.quantity
+          const userObj = users.find((u) => u.id === userId)
+          if (userObj) {
+            newClaimedBy.push(userObj.name)
+          }
+
+          // Set all other users' portions to 0
+          users.forEach((u) => {
+            if (u.id !== userId) {
+              newPortions[u.id] = 0
+            }
+          })
+
+          return { ...item, portions: newPortions, claimedBy: newClaimedBy }
+        }
+        return item
+      }),
+    )
+  }
+
+  const handleUnclaimAllPortions = (itemId: string) => {
+    setItems((prevItems) =>
+      prevItems.map((item) => {
+        if (item.id === itemId) {
+          return { ...item, portions: {}, claimedBy: [] } // Clear all portions and claimedBy
+        }
+        return item
+      }),
+    )
+  }
+
+  const handleAddManualItem = () => {
+    if (newManualItem.name.trim() === "" || newManualItem.quantity <= 0 || newManualItem.unit_price <= 0) {
+      alert("Nama, kuantitas, dan harga satuan item harus diisi dengan benar.")
+      return
+    }
+
+    const newItem: ItemDisplay = {
+      id: `manual-item-${items.length + 1}-${Math.random().toString(36).substring(7)}`,
+      name: newManualItem.name.trim(),
+      quantity: newManualItem.quantity,
+      unit_price: newManualItem.unit_price,
+      total_price: newManualItem.quantity * newManualItem.unit_price,
+      category_guess: "other", // Default category for manual items
+      sharing_potential: newManualItem.sharing_potential,
+      claimedBy: [],
+      portions: {},
+      imageUrl: `/placeholder.svg?height=64&width=64`,
+    }
+    setItems((prev) => [...prev, newItem])
+    setNewManualItem({ name: "", quantity: 1, unit_price: 0, total_price: 0, sharing_potential: 0.5 })
+    setIsAddingManualItem(false)
+  }
+
+  const handleDeleteItem = (itemIdToDelete: string) => {
+    setItems((prevItems) => prevItems.filter((item) => item.id !== itemIdToDelete))
+  }
+
+  // Simplified calculation: each user pays for the units they claimed at unit_price
+  const calculateUserTotal = useCallback(
+    (userId: string) => {
+      return items.reduce((total, item) => {
+        const userUnitsClaimed = item.portions[userId] || 0
+        return total + item.unit_price * userUnitsClaimed
+      }, 0)
+    },
+    [items],
+  )
+
+  const getCategoryIcon = (category: string | undefined) => {
+    switch (category) {
+      case "main_course":
+        return "🍽️"
+      case "drink":
+        return "🥤"
+      case "appetizer":
+        return "🥗"
+      case "dessert":
+        return "🍰"
+      default:
+        return "🍴"
+    }
+  }
+
+  const generateShareMessage = useCallback(() => {
+    if (!receiptData || users.length === 0) return ""
+
+    const userTotals = users
+      .map((user) => ({
+        name: user.name,
+        total: calculateUserTotal(user.id),
+      }))
+      .filter((user) => user.total > 0)
+
+    let message = `🧾 Pembagian Tagihan Lokal - ${receiptData.restaurant_info?.name || "Restoran Tidak Dikenal"}\n`
+    if (receiptData.restaurant_info?.date) {
+      message += `🗓️ Tanggal: ${receiptData.restaurant_info.date}\n`
+    }
+    message += `\n`
+
+    userTotals.forEach((user) => {
+      message += `👤 ${user.name}: Rp ${user.total.toLocaleString("id-ID")}\n`
+    })
+
+    message += `\n💰 Total Struk: Rp ${receiptData.summary.total.toLocaleString("id-ID")}\n`
+    message += `\n✨ Dihitung dengan Patungan (Mode Lokal)`
+
+    return message
+  }, [receiptData, users, items, calculateUserTotal])
+
+  const handleShare = async (method: "copy" | "whatsapp" | "instagram" | "messenger" | "discord") => {
+    const message = generateShareMessage()
+
+    switch (method) {
+      case "copy":
+        await navigator.clipboard.writeText(message)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+        break
+      case "whatsapp":
+        window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank")
+        break
+      case "instagram":
+        alert("Pesan telah disalin! Buka Instagram dan paste di chat yang diinginkan.")
+        await navigator.clipboard.writeText(message)
+        break
+      case "messenger":
+        alert("Pesan telah disalin! Buka Messenger dan paste di chat yang diinginkan.")
+        await navigator.clipboard.writeText(message)
+        break
+      case "discord":
+        alert("Pesan telah disalin! Buka Discord dan paste di chat yang diinginkan.")
+        await navigator.clipboard.writeText(message)
+        break
+    }
+  }
+
+  const handleFinalizeCalculation = async () => {
+    setIsFinalized(true)
+    setIsAnalyzing(true)
+    setAiAnalysis(null)
+
+    try {
+      // Save session to localStorage
+      const newSession: SavedSession = {
+        id: `session-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        timestamp: Date.now(),
+        restaurantName: receiptData?.restaurant_info?.name || "Unknown Restaurant",
+        totalAmount: receiptData?.summary?.total || 0,
+        receiptData: receiptData!,
+        items: items,
+        users: users,
+      }
+
+      const existingSessionsString = localStorage.getItem("moment_split_bill_sessions")
+      const existingSessions: SavedSession[] = existingSessionsString ? JSON.parse(existingSessionsString) : []
+      localStorage.setItem("moment_split_bill_sessions", JSON.stringify([...existingSessions, newSession]))
+
+      const response = await fetch("/api/analyze-local-receipt", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          receiptData,
+          items,
+          users,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      setAiAnalysis(data.analysis)
+    } catch (error) {
+      console.error("Error fetching AI analysis or saving session:", error)
+      setAiAnalysis("Maaf, terjadi kesalahan saat menghasilkan analisis AI atau menyimpan sesi. Silakan coba lagi.")
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+
+  if (!receiptData) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center space-y-4">
+          <motion.div
+            className="w-16 h-16 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-3xl flex items-center justify-center mx-auto"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+          >
+            <DollarSign className="h-8 w-8 text-white" />
+          </motion.div>
+          <p className="text-gray-600">Memuat sesi lokal...</p>
+          <p className="text-sm text-gray-500">Pastikan Anda datang dari halaman Scan.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">Sesi Lokal</h1>
+            <p className="text-gray-600 text-sm">
+              {receiptData.restaurant_info?.name || "Unknown Restaurant"} • {users.length} orang
+            </p>
+          </div>
+          <Badge className="bg-blue-100 text-blue-700 border-blue-200">Mode Lokal</Badge>
+        </div>
+      </motion.div>
+
+      {/* Users */}
+      <GlassCard className="p-4">
+        <div className="flex items-center space-x-2 mb-3">
+          <Users className="h-5 w-5 text-purple-600" />
+          <span className="font-semibold text-gray-800">Peserta ({users.length})</span>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-3">
+          {users.map((user) => (
+            <motion.div
+              key={user.id}
+              className="flex items-center space-x-2 glass-light rounded-xl px-3 py-2"
+              whileHover={{ scale: 1.05 }}
+            >
+              <Avatar className="w-6 h-6">
+                <AvatarFallback className={`text-white text-xs bg-gradient-to-r ${user.color}`}>
+                  {user.avatar}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium text-gray-700">{user.name}</span>
+              <Badge variant="outline" className="text-xs border-purple-200 text-purple-700">
+                Rp {user.total.toLocaleString("id-ID")}
+              </Badge>
+              {user.id !== "local-user-1" && ( // Don't allow removing the default "Anda" user
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-gray-500 hover:text-red-500"
+                  onClick={() => handleRemoveUser(user.id)}
+                >
+                  <XCircle className="h-4 w-4" />
+                </Button>
+              )}
+            </motion.div>
+          ))}
+        </div>
+
+        <Dialog open={isAddingUser} onOpenChange={setIsAddingUser}>
+          <DialogTrigger asChild>
+            <Button
+              variant="outline"
+              className="w-full bg-transparent border-dashed border-gray-300 text-gray-600 hover:bg-gray-50"
+            >
+              <Plus className="h-4 w-4 mr-2" /> Tambah Peserta Baru
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px] rounded-2xl p-6 bg-white/80 backdrop-blur-xl border border-gray-100 shadow-lg">
+            <DialogHeader className="mb-4">
+              <DialogTitle className="text-2xl font-bold text-gray-800">Tambah Peserta</DialogTitle>
+              <DialogDescription className="text-gray-600">
+                Masukkan nama peserta yang ingin Anda tambahkan ke sesi ini.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="name" className="text-right text-gray-700 font-medium">
+                  Nama
+                </Label>
+                <Input
+                  id="name"
+                  value={newUserName}
+                  onChange={(e) => setNewUserName(e.target.value)}
+                  className="col-span-3 input-glass"
+                  placeholder="Contoh: Budi, Sarah"
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter") handleAddUser()
+                  }}
+                />
+              </div>
+            </div>
+            <DialogFooter className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsAddingUser(false)}
+                className="bg-transparent text-gray-700 hover:bg-gray-100"
+              >
+                Batal
+              </Button>
+              <Button type="submit" onClick={handleAddUser} className="btn-primary">
+                Tambah
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </GlassCard>
+
+      {/* Items */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold text-gray-800">Item yang Dipesan</h2>
+
+        {/* Add Manual Item Button */}
+        <Dialog open={isAddingManualItem} onOpenChange={setIsAddingManualItem}>
+          <DialogTrigger asChild>
+            <Button
+              variant="outline"
+              className="w-full bg-transparent border-dashed border-gray-300 text-gray-600 hover:bg-gray-50 mb-4"
+            >
+              <Plus className="h-4 w-4 mr-2" /> Tambah Item Manual
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px] rounded-2xl p-6 bg-white/80 backdrop-blur-xl border border-gray-100 shadow-lg">
+            <DialogHeader className="mb-4">
+              <DialogTitle className="text-2xl font-bold text-gray-800">Tambah Item Baru</DialogTitle>
+              <DialogDescription className="text-gray-600">
+                Masukkan detail item yang ingin Anda tambahkan secara manual.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="itemName" className="text-right text-gray-700 font-medium">
+                  Nama Item
+                </Label>
+                <Input
+                  id="itemName"
+                  value={newManualItem.name}
+                  onChange={(e) => setNewManualItem({ ...newManualItem, name: e.target.value })}
+                  className="col-span-3 input-glass"
+                  placeholder="Contoh: Nasi Goreng"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="itemQuantity" className="text-right text-gray-700 font-medium">
+                  Kuantitas
+                </Label>
+                <Input
+                  id="itemQuantity"
+                  type="number"
+                  value={newManualItem.quantity}
+                  onChange={(e) =>
+                    setNewManualItem({ ...newManualItem, quantity: Number.parseInt(e.target.value) || 1 })
+                  }
+                  className="col-span-3 input-glass"
+                  min="1"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="unitPrice" className="text-right text-gray-700 font-medium">
+                  Harga Satuan
+                </Label>
+                <Input
+                  id="unitPrice"
+                  type="number"
+                  value={newManualItem.unit_price}
+                  onChange={(e) =>
+                    setNewManualItem({ ...newManualItem, unit_price: Number.parseFloat(e.target.value) || 0 })
+                  }
+                  className="col-span-3 input-glass"
+                  min="0"
+                  step="any"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="sharingPotential" className="text-right text-gray-700 font-medium">
+                  Potensi Bagi
+                </Label>
+                <select
+                  id="sharingPotential"
+                  value={newManualItem.sharing_potential}
+                  onChange={(e) =>
+                    setNewManualItem({ ...newManualItem, sharing_potential: Number.parseFloat(e.target.value) })
+                  }
+                  className="col-span-3 input-glass py-2 px-3 rounded-md"
+                >
+                  <option value={0.0}>Personal (Tidak Dibagi)</option>
+                  <option value={0.5}>Bisa Dibagi (Default)</option>
+                  <option value={1.0}>Sangat Bisa Dibagi</option>
+                </select>
+              </div>
+            </div>
+            <DialogFooter className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsAddingManualItem(false)}
+                className="bg-transparent text-gray-700 hover:bg-gray-100"
+              >
+                Batal
+              </Button>
+              <Button type="submit" onClick={handleAddManualItem} className="btn-primary">
+                Tambah Item
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <AnimatePresence>
+          {items.map((item, index) => (
+            <motion.div
+              key={item.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+            >
+              <GlassCard className="p-4">
+                <div className="space-y-4">
+                  {/* Item Header */}
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 flex items-center space-x-3">
+                      {item.imageUrl ? (
+                        <img
+                          src={item.imageUrl || "/placeholder.svg"}
+                          alt={item.name}
+                          className="w-12 h-12 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                          <ImageIcon className="h-6 w-6 text-gray-400" />
+                        </div>
+                      )}
+                      <div>
+                        <div className="flex items-center space-x-2 mb-1">
+                          <span className="text-xl">{getCategoryIcon(item.category_guess)}</span>
+                          <h3 className="font-bold text-lg text-gray-800">{item.name}</h3>
+                          {item.sharing_potential && item.sharing_potential > 0.5 && (
+                            <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-xs">
+                              Bisa Dibagi
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-gray-600 text-sm">
+                          {item.quantity}x @ Rp {item.unit_price.toLocaleString("id-ID")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right flex flex-col items-end">
+                      <div className="text-xl font-bold text-gray-800">
+                        Rp {item.total_price.toLocaleString("id-ID")}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-gray-500 hover:text-red-500 mt-1"
+                        onClick={() => handleDeleteItem(item.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Hapus Item</span>
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Claiming Interface - Always show portion control */}
+                  <GlassCard className="p-4 bg-blue-500/5">
+                    <p className="text-sm font-semibold mb-3 text-gray-700">Siapa yang pesan?</p>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {users.map((user) => (
+                        <motion.button
+                          key={user.id}
+                          // Toggle portion between 0 and 1 when button is clicked
+                          onClick={() => updatePortion(item.id, user.id, (item.portions[user.id] || 0) > 0 ? 0 : 1)}
+                          className={`flex items-center space-x-2 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                            (item.portions[user.id] || 0) > 0
+                              ? `bg-gradient-to-r ${user.color} text-white shadow-md`
+                              : "glass-light text-gray-700"
+                          }`}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          <Avatar className="w-4 h-4">
+                            <AvatarFallback className={`text-white text-xs bg-gradient-to-r ${user.color}`}>
+                              {user.avatar}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span>{user.name}</span>
+                        </motion.button>
+                      ))}
+                    </div>
+
+                    <p className="text-sm font-semibold mb-3 text-gray-700">Bagikan porsi (unit):</p>
+                    <div className="space-y-3">
+                      {users.map((user) => (
+                        <div key={user.id} className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Avatar className="w-6 h-6">
+                              <AvatarFallback className={`text-white text-xs bg-gradient-to-r ${user.color}`}>
+                                {user.avatar}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-sm font-medium text-gray-700">
+                              {user.name} ({item.portions[user.id] || 0}x)
+                            </span>
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            <motion.button
+                              onClick={() => updatePortion(item.id, user.id, (item.portions[user.id] || 0) - 1)}
+                              className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center"
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              disabled={(item.portions[user.id] || 0) <= 0}
+                            >
+                              <Minus className="h-4 w-4 text-gray-600" />
+                            </motion.button>
+
+                            <span className="w-8 text-center font-medium text-gray-800">
+                              {item.portions[user.id] || 0}
+                            </span>
+
+                            <motion.button
+                              onClick={() => updatePortion(item.id, user.id, (item.portions[user.id] || 0) + 1)}
+                              className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center"
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              disabled={(item.portions[user.id] || 0) >= item.quantity} // Disable if max quantity reached
+                            >
+                              <Plus className="h-4 w-4 text-gray-600" />
+                            </motion.button>
+
+                            {/* New "Klaim Semua" button */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleClaimAllUnits(item.id, user.id)}
+                              disabled={(item.portions[user.id] || 0) === item.quantity} // Disable if already claimed all
+                              className="ml-2 text-xs px-2 py-1 h-auto"
+                            >
+                              Klaim Semua
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleUnclaimAllPortions(item.id)}
+                      className="w-full mt-3 bg-transparent border-dashed border-gray-300 text-gray-600 hover:bg-gray-50"
+                    >
+                      Tidak Dibagi
+                    </Button>
+                  </GlassCard>
+
+                  {/* Show claimed status */}
+                  <div className="pt-3 border-t border-gray-100">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-gray-600 font-medium">Dibagi oleh:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(item.portions).map(([userId, portion]) => {
+                          if (portion === 0) return null
+                          const userObj = users.find((u) => u.id === userId)
+                          return (
+                            <Badge key={userId} variant="outline" className="text-xs border-purple-200 text-purple-700">
+                              {userObj?.name || "Unknown"} ({portion})
+                            </Badge>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </GlassCard>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      {/* Summary */}
+      <GlassCard className="p-6">
+        <div className="flex items-center space-x-2 mb-4">
+          <DollarSign className="h-5 w-5 text-purple-600" />
+          <span className="font-semibold text-gray-800">Ringkasan</span>
+        </div>
+
+        <div className="space-y-3">
+          {receiptData.summary?.subtotal && (
+            <div className="flex justify-between text-gray-600 text-sm">
+              <span>Subtotal</span>
+              <span>Rp {receiptData.summary.subtotal.toLocaleString("id-ID")}</span>
+            </div>
+          )}
+          {receiptData.summary?.discount && receiptData.summary.discount > 0 && (
+            <div className="flex justify-between text-gray-600 text-sm">
+              <span>Diskon</span>
+              <span>- Rp {receiptData.summary.discount.toLocaleString("id-ID")}</span>
+            </div>
+          )}
+          {receiptData.summary?.tax && receiptData.summary.tax > 0 && (
+            <div className="flex justify-between text-gray-600 text-sm">
+              <span>Pajak</span>
+              <span>Rp {receiptData.summary.tax.toLocaleString("id-ID")}</span>
+            </div>
+          )}
+          {receiptData.summary?.ppn && receiptData.summary.ppn > 0 && (
+            <div className="flex justify-between text-gray-600 text-sm">
+              <span>PPN</span>
+              <span>Rp {receiptData.summary.ppn.toLocaleString("id-ID")}</span>
+            </div>
+          )}
+          {receiptData.summary?.service_charge && receiptData.summary.service_charge > 0 && (
+            <div className="flex justify-between text-gray-600 text-sm">
+              <span>Service Charge</span>
+              <span>Rp {receiptData.summary.service_charge.toLocaleString("id-ID")}</span>
+            </div>
+          )}
+          {receiptData.summary?.points_redeemed && receiptData.summary.points_redeemed > 0 && (
+            <div className="flex justify-between text-gray-600 text-sm">
+              <span>Poin Ditebus</span>
+              <span>- Rp {receiptData.summary.points_redeemed.toLocaleString("id-ID")}</span>
+            </div>
+          )}
+          <div className="flex justify-between font-bold text-lg border-t pt-3 text-gray-800">
+            <span>Total</span>
+            <span>Rp {receiptData.summary.total.toLocaleString("id-ID")}</span>
+          </div>
+        </div>
+
+        {/* Payment Info */}
+        {receiptData.payment_info?.method && (
+          <div className="space-y-2 pt-4 border-t border-gray-200">
+            <div className="flex items-center space-x-2 text-gray-700">
+              <CreditCard className="h-4 w-4" />
+              <span className="font-semibold">Informasi Pembayaran:</span>
+            </div>
+            <p className="text-sm text-gray-600">
+              Metode: {receiptData.payment_info.method}
+              {receiptData.payment_info.card_last_digits && ` (**** ${receiptData.payment_info.card_last_digits})`}
+            </p>
+          </div>
+        )}
+      </GlassCard>
+
+      {/* Individual Totals */}
+      <GlassCard className="p-6">
+        <h3 className="font-semibold text-gray-800 mb-4">Tagihan Individual</h3>
+        <div className="space-y-3">
+          {users.map((user) => {
+            const userTotal = calculateUserTotal(user.id)
+            // Only display users with a non-zero total
+            if (userTotal === 0) return null
+
+            return (
+              <motion.div
+                key={user.id}
+                className="flex items-center justify-between p-3 glass-light rounded-xl"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+              >
+                <div className="flex items-center space-x-3">
+                  <Avatar className="w-8 h-8">
+                    <AvatarFallback className={`text-white bg-gradient-to-r ${user.color}`}>
+                      {user.avatar}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="font-medium text-gray-800">{user.name}</span>
+                </div>
+                <span className="font-bold text-lg text-gray-800">Rp {userTotal.toLocaleString("id-ID")}</span>
+              </motion.div>
+            )
+          })}
+        </div>
+      </GlassCard>
+
+      {/* Finalize Button */}
+      {!isFinalized && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <Button
+            onClick={handleFinalizeCalculation}
+            className="btn-primary w-full flex items-center justify-center space-x-2"
+          >
+            <Check className="h-5 w-5" />
+            <span>Selesaikan Hitung & Simpan Sesi</span>
+          </Button>
+        </motion.div>
+      )}
+
+      {/* Finalized Section: AI Analysis & Share Options */}
+      <AnimatePresence>
+        {isFinalized && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-6"
+          >
+            {/* AI Analysis */}
+            <GlassCard className="p-6 bg-purple-500/5 border-purple-200/50">
+              <div className="flex items-center space-x-2 mb-4">
+                <Sparkles className="h-5 w-5 text-purple-600" />
+                <span className="font-semibold text-gray-800">Analisis AI</span>
+              </div>
+              {isAnalyzing ? (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 text-purple-500 animate-spin" />
+                  <p className="mt-3 text-gray-600">AI sedang menganalisis...</p>
+                </div>
+              ) : (
+                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{aiAnalysis}</p>
+              )}
+            </GlassCard>
+
+            {/* Share Options */}
+            <GlassCard className="p-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <Share2 className="h-5 w-5 text-blue-600" />
+                <span className="font-semibold text-gray-800">Bagikan Hasil Pembagian</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <Button variant="outline" onClick={() => handleShare("copy")} className="flex items-center space-x-2">
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  <span>{copied ? "Tersalin!" : "Copy Text"}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleShare("whatsapp")}
+                  className="flex items-center space-x-2 text-green-600 border-green-200"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  <span>WhatsApp</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleShare("instagram")}
+                  className="flex items-center space-x-2 text-pink-600 border-pink-200"
+                >
+                  <Instagram className="h-4 w-4" />
+                  <span>Instagram</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleShare("messenger")}
+                  className="flex items-center space-x-2 text-blue-600 border-blue-200"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>Messenger</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleShare("discord")}
+                  className="flex items-center space-x-2 text-indigo-600 border-indigo-200"
+                >
+                  <Discord className="h-4 w-4" />
+                  <span>Discord</span>
+                </Button>
+              </div>
+            </GlassCard>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}

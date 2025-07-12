@@ -1,0 +1,21 @@
+{
+  "name": "Patungan - Social Finance Hub",
+  "short_name": "Patungan",
+  "description": "Your Social Finance Hub for easy bill splitting and expense tracking.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6b46c1",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
