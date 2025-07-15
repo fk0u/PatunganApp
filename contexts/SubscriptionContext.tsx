@@ -76,6 +76,9 @@ interface SubscriptionContextType {
   removeParticipant: (subscriptionId: string, userId: string) => Promise<void>
   updateParticipantShare: (subscriptionId: string, userId: string, share: number) => Promise<void>
   
+  // Invitation management
+  acceptSubscriptionInvitation: (subscriptionId: string, share?: number) => Promise<void>
+  
   // Payment management
   recordPayment: (subscriptionId: string, paymentData: Omit<SubscriptionPayment, 'id' | 'subscriptionId' | 'status'>) => Promise<SubscriptionPayment>
   
@@ -680,6 +683,66 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     return date.getTime()
   }
 
+  // Accept a subscription invitation as the current user
+  const acceptSubscriptionInvitation = async (subscriptionId: string, share?: number) => {
+    if (!user) throw new Error('User must be logged in to accept a subscription invitation')
+    
+    try {
+      // Get the current subscription
+      const subRef = doc(db, 'subscriptions', subscriptionId)
+      const subDoc = await getDoc(subRef)
+      
+      if (!subDoc.exists()) {
+        throw new Error('Subscription not found')
+      }
+      
+      const subscription = subDoc.data() as Subscription
+      
+      // Check if user is already a participant
+      const existingParticipant = subscription.participants.find(p => p.userId === user.uid)
+      
+      if (existingParticipant) {
+        if (existingParticipant.status === 'active') {
+          // User is already an active participant
+          return
+        }
+        
+        // Update participant status from invited/removed to active
+        const updatedParticipants = subscription.participants.map(p => 
+          p.userId === user.uid 
+            ? { ...p, status: 'active' as const, share: share || p.share } 
+            : p
+        )
+        
+        // Update subscription
+        await updateDoc(subRef, {
+          participants: updatedParticipants,
+          updatedAt: Date.now()
+        })
+      } else {
+        // Add user as new participant
+        const newParticipant: Participant = {
+          userId: user.uid,
+          displayName: user.displayName || user.email || 'User',
+          share: share || null,
+          status: 'active'
+        }
+        
+        // Update subscription participants
+        await updateDoc(subRef, {
+          participants: arrayUnion(newParticipant),
+          updatedAt: Date.now()
+        })
+      }
+      
+      // Local state update is now handled by real-time listeners
+    } catch (err) {
+      console.error('Error accepting subscription invitation:', err)
+      setError('Failed to accept subscription invitation')
+      throw err
+    }
+  }
+
   const value = {
     userSubscriptions,
     loading,
@@ -691,6 +754,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     addParticipant,
     removeParticipant,
     updateParticipantShare,
+    acceptSubscriptionInvitation,
     recordPayment,
     listenToSubscription,
     refreshSubscriptions

@@ -61,7 +61,7 @@ interface JoinSubscriptionPageProps {
 export default function JoinSubscriptionPage({ params }: JoinSubscriptionPageProps) {
   const router = useRouter()
   const { user } = useAuth()
-  const { getSubscriptionById, addParticipant, updateParticipantShare } = useSubscriptions()
+  const { getSubscriptionById, acceptSubscriptionInvitation } = useSubscriptions()
   
   const subscriptionId = params.id
   
@@ -116,11 +116,6 @@ export default function JoinSubscriptionPage({ params }: JoinSubscriptionPagePro
     setIsSubmitting(true)
     
     try {
-      // Find if user already exists in participants list but not active
-      const existingParticipant = subscription.participants.find(
-        (p: any) => p.userId === user.uid && p.status !== 'active'
-      )
-      
       // Calculate default share (equal distribution or custom)
       const numericAmount = subscription.amount
       const activeParticipants = subscription.participants.filter(
@@ -129,13 +124,8 @@ export default function JoinSubscriptionPage({ params }: JoinSubscriptionPagePro
       
       const equalShare = Math.floor(numericAmount / (activeParticipants + 1))
       
-      if (existingParticipant) {
-        // Update participant status to active
-        await updateParticipantShare(subscriptionId, user.uid, equalShare)
-      } else {
-        // Add as new participant
-        await addParticipant(subscriptionId, user.uid, equalShare)
-      }
+      // Use the new acceptSubscriptionInvitation function
+      await acceptSubscriptionInvitation(subscriptionId, equalShare)
       
       toast.success("Berhasil bergabung dengan langganan!")
       router.push(`/subscriptions/${subscriptionId}`)
