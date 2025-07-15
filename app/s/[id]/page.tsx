@@ -14,7 +14,9 @@ import {
   X,
   CreditCard,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  MessageSquareText,
+  Mail
 } from 'lucide-react'
 import { BackgroundBeams } from "@/components/ui/background-beams"
 import { Button } from "@/components/ui/button"
@@ -536,7 +538,7 @@ export default function SharedSessionPage() {
             <div className="grid grid-cols-3 gap-3">
               <button className="flex flex-col items-center justify-center p-3 bg-white/5 hover:bg-white/10 rounded-lg">
                 <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center mb-2">
-                  <MessageSquare className="h-5 w-5 text-white" />
+                  <MessageSquareText className="h-5 w-5 text-white" />
                 </div>
                 <span className="text-xs">WhatsApp</span>
               </button>

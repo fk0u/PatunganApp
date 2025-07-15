@@ -8,7 +8,7 @@ import {
   Scan,
   Sparkles,
   BarChart3,
-  MessageSquare,
+  MessageSquareText,
   Shield,
   Zap,
   ArrowRight,
@@ -47,7 +47,7 @@ export default function LandingPage() {
       description: "Ajak teman-teman untuk membagi tagihan secara real-time dengan mudah"
     },
     {
-      icon: <MessageSquare className="h-6 w-6" />,
+      icon: <MessageSquareText className="h-6 w-6" />,
       title: "AI Chat Assistant",
       description: "Tanya AI tentang keuangan dan dapatkan insight spending yang personal"
     },

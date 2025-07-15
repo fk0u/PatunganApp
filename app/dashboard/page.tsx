@@ -17,7 +17,7 @@ import {
   Scan,
   LogOut,
   User,
-  MessageSquare,
+  MessageSquareText,
   BarChart3,
   Users,
   Share,
@@ -311,7 +311,7 @@ export default function DashboardPage() {
           >
             <div className="flex items-center mb-4">
               <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center text-white">
-                <MessageSquare className="h-6 w-6" />
+                <MessageSquareText className="h-6 w-6" />
               </div>
             </div>
             <h3 className="text-xl font-semibold mb-2">AI Chat</h3>
@@ -794,7 +794,7 @@ export default function DashboardPage() {
                     }}
                   >
                     <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center mb-2">
-                      <MessageSquare className="h-5 w-5 text-white" />
+                      <MessageSquareText className="h-5 w-5 text-white" />
                     </div>
                     <span className="text-xs text-white">WhatsApp</span>
                   </button>

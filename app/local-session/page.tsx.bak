@@ -16,7 +16,7 @@ import {
   Share2,
   Loader2,
   Sparkles,
-  MessageSquare,
+  MessageSquareText,
   DiscIcon as Discord,
   CreditCard,
   Trash2,
@@ -1200,7 +1200,7 @@ export default function LocalSessionPage() {
                   onClick={() => handleShare("messenger")}
                   className="flex items-center space-x-2 text-blue-600 border-blue-200"
                 >
-                  <MessageSquare className="h-4 w-4" />
+                  <MessageSquareText className="h-4 w-4" />
                   <span>Messenger</span>
                 </Button>
                 <Button
