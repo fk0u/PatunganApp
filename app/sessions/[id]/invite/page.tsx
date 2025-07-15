@@ -24,7 +24,7 @@ export default function ShareInvitePage() {
   const router = useRouter()
   const params = useParams()
   const { user } = useAuth()
-  const { getSessionById } = useSessions()
+  const { getSessionById, listenToSession } = useSessions()
   
   const [session, setSession] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -42,7 +42,35 @@ export default function ShareInvitePage() {
     if (!params.id) return
     
     const sessionId = Array.isArray(params.id) ? params.id[0] : params.id
+    
+    // Initial load
     loadSession(sessionId)
+    
+    // Set up real-time listener
+    const unsubscribe = listenToSession(sessionId, (sessionData) => {
+      setSession(sessionData)
+      
+      // Update invitations when session changes
+      if (sessionData.invitations && sessionData.invitations.length > 0) {
+        // Sort by creation date, newest first
+        const sortedInvites = [...sessionData.invitations].sort((a, b) => b.createdAt - a.createdAt)
+        
+        // Find latest valid invitation
+        const now = Date.now()
+        const validInvite = sortedInvites.find(invite => !invite.used && invite.expiresAt > now)
+        
+        if (validInvite) {
+          setInviteLink(`${window.location.origin}/invite/${validInvite.code}`)
+        }
+        
+        setExistingInvites(sortedInvites)
+      }
+    })
+    
+    // Clean up listener
+    return () => {
+      unsubscribe()
+    }
   }, [user, params.id])
   
   const loadSession = async (sessionId: string) => {

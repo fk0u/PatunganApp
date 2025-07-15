@@ -14,7 +14,8 @@ import {
   addDoc, 
   arrayUnion, 
   arrayRemove, 
-  Timestamp 
+  Timestamp,
+  onSnapshot 
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
@@ -87,6 +88,7 @@ interface SessionContextType {
   // Session operations
   createSession: (sessionData: Omit<Session, 'id' | 'createdBy' | 'createdAt' | 'updatedAt' | 'status' | 'transactions' | 'totalAmount'>) => Promise<Session>
   getSessionById: (sessionId: string) => Promise<Session | null>
+  listenToSession: (sessionId: string, callback: (session: Session) => void) => () => void
   updateSession: (sessionId: string, updates: Partial<Omit<Session, 'id' | 'createdBy' | 'createdAt'>>) => Promise<void>
   completeSession: (sessionId: string) => Promise<void>
   cancelSession: (sessionId: string) => Promise<void>
@@ -129,6 +131,14 @@ export function SessionProvider({ children }: SessionProviderProps) {
   const [userSessions, setUserSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const sessionListeners = React.useRef<Array<() => void>>([])
+  
+  // Clean up listeners when unmounting
+  useEffect(() => {
+    return () => {
+      sessionListeners.current.forEach(unsubscribe => unsubscribe())
+    }
+  }, [])
 
   // Fetch user's sessions on mount and when user changes
   useEffect(() => {
@@ -163,6 +173,33 @@ export function SessionProvider({ children }: SessionProviderProps) {
         where('createdBy', '==', user.uid)
       )
       
+      // Set up real-time listeners
+      const unsubscribeParticipant = onSnapshot(sessionsQuery, (participantSnapshot) => {
+        const sessionsAsParticipant = participantSnapshot.docs.map(doc => 
+          ({ id: doc.id, ...doc.data() }) as Session
+        )
+        
+        updateSessionsState(sessionsAsParticipant, [])
+      }, (error) => {
+        console.error('Error in participant sessions listener:', error)
+        setError('Failed to listen for session updates')
+      })
+      
+      const unsubscribeCreator = onSnapshot(createdSessionsQuery, (creatorSnapshot) => {
+        const sessionsAsCreator = creatorSnapshot.docs.map(doc => 
+          ({ id: doc.id, ...doc.data() }) as Session
+        )
+        
+        updateSessionsState([], sessionsAsCreator)
+      }, (error) => {
+        console.error('Error in creator sessions listener:', error)
+        setError('Failed to listen for session updates')
+      })
+      
+      // Store the unsubscribe functions
+      sessionListeners.current = [unsubscribeParticipant, unsubscribeCreator]
+      
+      // Fetch initial data once
       const [participantSnapshot, creatorSnapshot] = await Promise.all([
         getDocs(sessionsQuery),
         getDocs(createdSessionsQuery)
@@ -176,23 +213,30 @@ export function SessionProvider({ children }: SessionProviderProps) {
         ({ id: doc.id, ...doc.data() }) as Session
       )
       
-      // Combine and deduplicate
-      const allSessions = [...sessionsAsParticipant]
+      updateSessionsState(sessionsAsParticipant, sessionsAsCreator)
+      setLoading(false)
+    } catch (err) {
+      console.error('Error fetching sessions:', err)
+      setError('Failed to fetch sessions')
+      setLoading(false)
+    }
+  }
+  
+  // Helper function to merge and deduplicate sessions
+  const updateSessionsState = (participantSessions: Session[], creatorSessions: Session[]) => {
+    setUserSessions(prevSessions => {
+      // Start with participant sessions
+      const allSessions = [...participantSessions]
       
-      // Add sessions where user is creator but not in participants list
-      sessionsAsCreator.forEach(session => {
+      // Add creator sessions that aren't already included
+      creatorSessions.forEach(session => {
         if (!allSessions.some(s => s.id === session.id)) {
           allSessions.push(session)
         }
       })
       
-      setUserSessions(allSessions)
-    } catch (err) {
-      console.error('Error fetching sessions:', err)
-      setError('Failed to fetch sessions')
-    } finally {
-      setLoading(false)
-    }
+      return allSessions
+    })
   }
 
   const refreshSessions = async () => {
@@ -263,6 +307,23 @@ export function SessionProvider({ children }: SessionProviderProps) {
       setError('Failed to fetch session')
       return null
     }
+  }
+  
+  // New function to listen to a specific session in real-time
+  const listenToSession = (sessionId: string, callback: (session: Session) => void) => {
+    const sessionRef = doc(db, 'sessions', sessionId)
+    
+    const unsubscribe = onSnapshot(sessionRef, (doc) => {
+      if (doc.exists()) {
+        const sessionData = { id: doc.id, ...doc.data() } as Session
+        callback(sessionData)
+      }
+    }, (error) => {
+      console.error('Error listening to session:', error)
+    })
+    
+    // Return the unsubscribe function so the caller can stop listening when needed
+    return unsubscribe
   }
 
   const updateSession = async (
@@ -854,6 +915,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
     error,
     createSession,
     getSessionById,
+    listenToSession,
     updateSession,
     completeSession,
     cancelSession,

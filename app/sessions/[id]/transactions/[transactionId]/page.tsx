@@ -31,7 +31,7 @@ import { toast } from "sonner"
 export default function TransactionDetailPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const { getSessionById } = useSessions()
+  const { getSessionById, listenToSession } = useSessions()
   
   const [session, setSession] = useState<any>(null)
   const [transaction, setTransaction] = useState<any>(null)
@@ -58,26 +58,26 @@ export default function TransactionDetailPage() {
       return
     }
     
-    const fetchData = async () => {
+    // Get URL params - safely handle server-side rendering
+    let sessionId, transactionId;
+    
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      sessionId = urlParams.get('sessionId')
+      transactionId = urlParams.get('transactionId')
+    }
+    
+    if (!sessionId || !transactionId) {
+      toast.error("ID sesi atau transaksi tidak ditemukan")
+      router.push('/sessions')
+      return
+    }
+    
+    const fetchInitialData = async () => {
       setLoading(true)
       
-      // Get URL params - safely handle server-side rendering
-      let sessionId, transactionId;
-      
-      if (typeof window !== 'undefined') {
-        const urlParams = new URLSearchParams(window.location.search)
-        sessionId = urlParams.get('sessionId')
-        transactionId = urlParams.get('transactionId')
-      }
-      
-      if (!sessionId || !transactionId) {
-        toast.error("ID sesi atau transaksi tidak ditemukan")
-        router.push('/sessions')
-        return
-      }
-      
       try {
-        // Get session data
+        // Get initial session data
         const sessionData = await getSessionById(sessionId)
         if (!sessionData) {
           toast.error("Sesi tidak ditemukan")
@@ -106,7 +106,33 @@ export default function TransactionDetailPage() {
       }
     }
     
-    fetchData()
+    fetchInitialData()
+    
+    // Set up real-time listener for the session
+    let unsubscribe: (() => void) | null = null;
+    
+    if (sessionId) {
+      unsubscribe = listenToSession(sessionId, (sessionData) => {
+        setSession(sessionData)
+        
+        // Update transaction data if it exists in the updated session
+        const updatedTransaction = sessionData.transactions.find(t => t.id === transactionId)
+        if (updatedTransaction) {
+          setTransaction(updatedTransaction)
+        }
+        
+        // Update participants list
+        const activeParticipants = sessionData.participants.filter(p => p.status === 'active')
+        setParticipants(activeParticipants)
+      })
+    }
+    
+    // Clean up the listener when component unmounts
+    return () => {
+      if (unsubscribe) {
+        unsubscribe()
+      }
+    }
   }, [user, router])
   
   if (!user || loading) {

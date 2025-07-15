@@ -48,7 +48,7 @@ export default function SessionDetailPage() {
   const router = useRouter()
   const params = useParams()
   const { user } = useAuth()
-  const { getSessionById, updateSession, addTransaction, calculateDebts } = useSessions()
+  const { getSessionById, updateSession, addTransaction, calculateDebts, listenToSession } = useSessions()
   
   const [session, setSession] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -74,7 +74,27 @@ export default function SessionDetailPage() {
     if (!params.id) return
     
     const sessionId = Array.isArray(params.id) ? params.id[0] : params.id
+    
+    // Initial load
     loadSession(sessionId)
+    
+    // Set up real-time listener
+    const unsubscribe = listenToSession(sessionId, async (sessionData) => {
+      setSession(sessionData)
+      
+      // Update debts when session data changes
+      try {
+        const debtsData = await calculateDebts(sessionId)
+        setDebts(debtsData)
+      } catch (error) {
+        console.error("Error calculating debts:", error)
+      }
+    })
+    
+    // Clean up listener when component unmounts
+    return () => {
+      unsubscribe()
+    }
   }, [user, params.id])
   
   const loadSession = async (sessionId: string) => {
