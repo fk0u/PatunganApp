@@ -18,7 +18,12 @@ export async function POST(req: Request) {
     }
 
     /* ---------- build safe prompt ---------- */
-    const itemDetails = items
+    // Pisahkan item berdasarkan jenis (scan vs manual)
+    const manualItems = items.filter((it: any) => it.id.startsWith('manual-item'))
+    const scannedItems = items.filter((it: any) => !it.id.startsWith('manual-item'))
+    
+    // Format untuk item hasil scan
+    const scannedItemDetails = scannedItems
       .map((it: any) => {
         let detail = `- ${it.name} (${it.quantity}x) @ ${rupiah(it.unit_price)} = ${rupiah(it.total_price)}`
         if (it.sharing_potential && it.sharing_potential > 0.5 && it.claimedBy && it.claimedBy.length > 0) {
@@ -31,6 +36,23 @@ export async function POST(req: Request) {
       })
       .slice(0, MAX_LINES)
       .join("\n")
+      
+    // Format untuk item manual
+    const manualItemDetails = manualItems
+      .map((it: any) => {
+        let detail = `- ${it.name} (${it.quantity}x) @ ${rupiah(it.unit_price)} = ${rupiah(it.total_price)} [MANUAL]`
+        if (it.sharing_potential && it.sharing_potential > 0.5 && it.claimedBy && it.claimedBy.length > 0) {
+          const numClaimers = it.claimedBy.length
+          const perPersonUnitCost = it.unit_price
+          detail += ` (dibagi oleh ${it.claimedBy.join(" dan ")}, masing-masing membayar ${rupiah(perPersonUnitCost)} per unit)`
+        }
+        return detail
+      })
+      .slice(0, MAX_LINES)
+      .join("\n")
+    
+    // Gabungkan kedua jenis item
+    const itemDetails = scannedItemDetails + (manualItemDetails ? "\n\n--- Item Manual Tambahan ---\n" + manualItemDetails : "")
 
     const userLines = sliceLines(users, (u) => `- ${u.name}: ${rupiah(u.total)}`)
 
@@ -58,9 +80,10 @@ ${userLines}
 Berdasarkan data di atas, berikan analisis yang menarik dan mudah dimengerti.
 1. Konfirmasi detail transaksi utama (Subtotal, PPN, Total Akhir).
 2. Jelaskan item-item yang dibeli, dan **secara khusus sorot bagaimana item yang dibagi dihitung per orang berdasarkan harga satuan per unit yang mereka klaim**, berikan contoh jika ada.
-3. Ringkas total tagihan individual.
-4. Sorot siapa yang paling banyak membayar, item terpopuler, dan berikan tips keuangan kecil yang relevan.
-5. Akhiri dengan kalimat penyemangat.
+3. Jika ada item yang ditambahkan secara manual (ditandai [MANUAL]), jelaskan bahwa ini adalah item tambahan yang diinput pengguna, bukan dari hasil scan struk asli.
+4. Ringkas total tagihan individual.
+5. Sorot siapa yang paling banyak membayar, item terpopuler, dan berikan tips keuangan kecil yang relevan.
+6. Akhiri dengan kalimat penyemangat.
 `.trim()
 
     /* ---------- call model ---------- */
@@ -74,7 +97,7 @@ Berdasarkan data di atas, berikan analisis yang menarik dan mudah dimengerti.
 
     try {
       const { text } = await generateText({
-        model: google("gemini-2.5-flash", { apiKey: GEMINI_KEY }),
+        model: google("gemini-2.5-flash", { apiKey: GEMINI_KEY as string }),
         prompt,
       })
       analysis = text

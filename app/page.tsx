@@ -1,531 +1,356 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useRef, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
-  Camera,
-  Upload,
-  Loader2,
-  CheckCircle,
-  AlertCircle,
+  Wallet,
+  Users,
+  Scan,
   Sparkles,
+  BarChart3,
+  MessageSquare,
+  Shield,
+  Zap,
   ArrowRight,
-  CreditCard,
-  MapPin,
-  Clock,
+  Play,
+  Star,
 } from "lucide-react"
-import { GlassCard } from "@/components/ui/glass-card"
-import { Badge } from "@/components/ui/badge"
-import { processReceiptWithGemini } from "@/lib/gemini"
+import { useAuth } from "@/contexts/AuthContext"
+import { AuthModal } from "@/components/auth/AuthModal"
+import { SpotlightPreview } from "@/components/ui/spotlight"
+import { Highlight } from "@/components/ui/hero-highlight"
+import { TextGenerateEffect } from "@/components/ui/text-effects"
+import { BackgroundBeams } from "@/components/ui/background-beams"
 import { useRouter } from "next/navigation"
 
-export default function ScanPage() {
-  const [isScanning, setIsScanning] = useState(false)
-  const [scanResult, setScanResult] = useState<any>(null)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [progress, setProgress] = useState(0)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const cameraInputRef = useRef<HTMLInputElement>(null)
+export default function LandingPage() {
+  const { user, logout } = useAuth()
   const router = useRouter()
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
 
-  const [currentTime, setCurrentTime] = useState<string>("")
-  const [currentLocation, setCurrentLocation] = useState<string>("Mencari lokasi...")
-  const [greeting, setGreeting] = useState<string>("")
-
+  // Redirect to dashboard if user is logged in
   useEffect(() => {
-    // Update time every second
-    const timer = setInterval(() => {
-      const now = new Date()
-      const hours = now.getHours()
-      const minutes = now.getMinutes().toString().padStart(2, "0")
-      const seconds = now.getSeconds().toString().padStart(2, "0")
-      setCurrentTime(`${hours}:${minutes}:${seconds}`)
-
-      if (hours >= 5 && hours < 12) {
-        setGreeting("Selamat Pagi")
-      } else if (hours >= 12 && hours < 17) {
-        setGreeting("Selamat Siang")
-      } else if (hours >= 17 && hours < 20) {
-        setGreeting("Selamat Sore")
-      } else {
-        setGreeting("Selamat Malam")
-      }
-    }, 1000)
-
-    // Get user's location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude } = position.coords
-          try {
-            // Using OpenStreetMap Nominatim for reverse geocoding
-            const response = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`,
-            )
-            const data = await response.json()
-            if (data.address) {
-              const city = data.address.city || data.address.town || data.address.village || ""
-              const country = data.address.country || ""
-              setCurrentLocation(`${city}, ${country}`)
-            } else {
-              setCurrentLocation("Lokasi tidak ditemukan")
-            }
-          } catch (geoError) {
-            console.error("Error fetching location name:", geoError)
-            setCurrentLocation("Gagal mendapatkan nama lokasi")
-          }
-        },
-        (geoError) => {
-          console.error("Error getting geolocation:", geoError)
-          setCurrentLocation("Lokasi tidak tersedia")
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
-      )
-    } else {
-      setCurrentLocation("Geolocation tidak didukung")
+    if (user) {
+      router.push('/dashboard')
     }
+  }, [user, router])
 
-    return () => clearInterval(timer)
-  }, [])
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      setSelectedFile(file)
-      setError(null)
-
-      // Create preview URL
-      const url = URL.createObjectURL(file)
-      setPreviewUrl(url)
-
-      processReceipt(file)
+  const features = [
+    {
+      icon: <Scan className="h-6 w-6" />,
+      title: "Smart Receipt Scanning",
+      description: "Scan struk belanja dengan AI untuk pembagian otomatis yang akurat dan cepat"
+    },
+    {
+      icon: <Users className="h-6 w-6" />,
+      title: "Collaborative Splitting",
+      description: "Ajak teman-teman untuk membagi tagihan secara real-time dengan mudah"
+    },
+    {
+      icon: <MessageSquare className="h-6 w-6" />,
+      title: "AI Chat Assistant",
+      description: "Tanya AI tentang keuangan dan dapatkan insight spending yang personal"
+    },
+    {
+      icon: <BarChart3 className="h-6 w-6" />,
+      title: "Smart Analytics",
+      description: "Analisis pengeluaran dengan visualisasi data yang komprehensif"
+    },
+    {
+      icon: <Shield className="h-6 w-6" />,
+      title: "Secure & Private",
+      description: "Data Anda aman dengan enkripsi end-to-end dan privacy protection"
+    },
+    {
+      icon: <Zap className="h-6 w-6" />,
+      title: "Lightning Fast",
+      description: "Proses pembagian tagihan dalam hitungan detik dengan teknologi terdepan"
     }
-  }
+  ]
 
-  const processReceipt = async (file: File) => {
-    setIsScanning(true)
-    setProgress(0)
-    setError(null)
-
-    try {
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(progressInterval)
-            return 90
-          }
-          return prev + 15
-        })
-      }, 400)
-
-      // Process with Gemini AI
-      const result = await processReceiptWithGemini(file)
-
-      clearInterval(progressInterval)
-      setProgress(100)
-
-      setScanResult(result)
-      setIsScanning(false)
-    } catch (error) {
-      console.error("Error processing receipt:", error)
-      setError("Gagal memproses struk. Pastikan foto jelas dan coba lagi.")
-      setIsScanning(false)
-      setProgress(0)
+  const testimonials = [
+    {
+      name: "Sarah Chen",
+      role: "Product Manager",
+      avatar: "SC",
+      text: "Patungan mengubah cara kami split bill. Sangat mudah dan akurat!"
+    },
+    {
+      name: "Ahmad Rizki",
+      role: "Software Engineer", 
+      avatar: "AR",
+      text: "AI-powered scanning benar-benar game changer. Highly recommended!"
+    },
+    {
+      name: "Maya Sari",
+      role: "Designer",
+      avatar: "MS", 
+      text: "UI/UX nya intuitive banget, fitur analytics juga sangat helpful."
     }
-  }
+  ]
 
-  const createLocalSession = () => {
-    if (!scanResult) return
-    sessionStorage.setItem("localReceiptData", JSON.stringify(scanResult))
-    router.push("/local-session")
-  }
-
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "main_course":
-        return "🍽️"
-      case "drink":
-        return "🥤"
-      case "appetizer":
-        return "🥗"
-      case "dessert":
-        return "🍰"
-      default:
-        return "🍴"
-    }
-  }
-
-  const resetScan = () => {
-    setSelectedFile(null)
-    setScanResult(null)
-    setError(null)
-    setProgress(0)
-    setIsScanning(false)
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl)
-      setPreviewUrl(null)
-    }
+  if (user) {
+    return null // Will redirect to dashboard
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header with Greeting, Location, Time */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col items-start justify-between mb-6"
-      >
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2">{greeting}, Pengguna!</h1>
-        <div className="flex items-center text-gray-600 text-sm md:text-base mb-1">
-          <MapPin className="h-4 w-4 mr-1" />
-          <span>{currentLocation}</span>
-        </div>
-        <div className="flex items-center text-gray-600 text-sm md:text-base">
-          <Clock className="h-4 w-4 mr-1" />
-          <span>{currentTime}</span>
-        </div>
+    <div className="min-h-screen bg-black text-white overflow-hidden">
+      <BackgroundBeams />
+      
+      {/* Navigation */}
+      <nav className="relative z-10 flex items-center justify-between p-6 md:p-8">
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="flex items-center space-x-2"
+        >
+          <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-lg flex items-center justify-center">
+            <Wallet className="h-5 w-5 text-white" />
+          </div>
+          <span className="text-xl font-bold">Patungan</span>
+        </motion.div>
 
-        {scanResult && (
-          <motion.button
-            onClick={resetScan}
-            className="glass-medium rounded-xl px-4 py-2 text-sm font-medium text-gray-700 mt-4"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            Scan Lagi
-          </motion.button>
-        )}
-      </motion.div>
+        <motion.button
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          onClick={() => setIsAuthModalOpen(true)}
+          className="px-6 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full hover:bg-white/20 transition-all"
+        >
+          Masuk / Daftar
+        </motion.button>
+      </nav>
 
-      <AnimatePresence mode="wait">
-        {!scanResult && !isScanning && !error && (
+      {/* Hero Section */}
+      <SpotlightPreview className="pt-20 pb-20">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="text-center"
+        >
+          <div className="inline-block">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="bg-gradient-to-r from-purple-500/20 to-cyan-500/20 border border-purple-500/20 rounded-full px-4 py-2 mb-6 inline-block"
+            >
+              <span className="text-sm font-medium text-purple-300">
+                ✨ Powered by AI • Trusted by 10,000+ Users
+              </span>
+            </motion.div>
+          </div>
+
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-b from-neutral-50 to-neutral-400 bg-opacity-50">
+            Split Bills Like a
+            <br />
+            <Highlight className="text-black dark:text-white">
+              Pro with AI
+            </Highlight>
+          </h1>
+
+          <TextGenerateEffect
+            words="Scan, Split, dan Share tagihan dengan teknologi AI terdepan. Buat pengalaman patungan yang lebih smart dan efisien."
+            className="text-lg md:text-xl text-gray-300 mb-8 max-w-3xl mx-auto"
+          />
+
+          <div className="flex flex-col md:flex-row gap-4 justify-center items-center">
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setIsAuthModalOpen(true)}
+              className="group relative px-8 py-4 rounded-full font-semibold text-lg overflow-hidden"
+              style={{
+                background: "linear-gradient(90deg, #8b5cf6, #06b6d4)",
+                boxShadow: "0 0 15px rgba(139, 92, 246, 0.4)"
+              }}
+            >
+              <span className="relative z-10 flex items-center">
+                Mulai Gratis
+                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              </span>
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="flex items-center px-8 py-4 border border-white/20 rounded-full font-semibold text-lg hover:bg-white/10 transition-all"
+            >
+              <Play className="mr-2 h-5 w-5" />
+              Lihat Demo
+            </motion.button>
+          </div>
+        </motion.div>
+      </SpotlightPreview>
+
+      {/* Features Section */}
+      <section className="relative z-10 py-20 px-6 md:px-8">
+        <div className="max-w-7xl mx-auto">
           <motion.div
-            key="upload"
             initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-6"
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
           >
-            {/* Upload Options */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <GlassCard className="p-6 text-center cursor-pointer" hover onClick={() => fileInputRef.current?.click()}>
-                <div className="space-y-4">
-                  <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-3xl flex items-center justify-center mx-auto">
-                    <Upload className="h-8 w-8 text-white" />
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-bold text-gray-800">Upload Foto</h3>
-                    <p className="text-sm text-gray-600">Pilih foto struk dari galeri</p>
-                  </div>
-                </div>
-              </GlassCard>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Fitur Yang Memukau
+            </h2>
+            <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+              Teknologi terdepan untuk pengalaman split bill yang tak tertandingi
+            </p>
+          </motion.div>
 
-              <GlassCard
-                className="p-6 text-center cursor-pointer"
-                hover
-                onClick={() => cameraInputRef.current?.click()}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {features.map((feature, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+                whileHover={{ scale: 1.03 }}
+                className="group relative p-6 bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl hover:bg-white/10 transition-colors"
               >
-                <div className="space-y-4">
-                  <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-3xl flex items-center justify-center mx-auto">
-                    <Camera className="h-8 w-8 text-white" />
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-bold text-gray-800">Ambil Foto</h3>
-                    <p className="text-sm text-gray-600">Gunakan kamera langsung</p>
+                <div className="flex items-center mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-xl flex items-center justify-center text-white">
+                    {feature.icon}
                   </div>
                 </div>
-              </GlassCard>
-            </div>
-
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-
-            {/* Tips */}
-            <GlassCard className="p-6 bg-blue-500/5 border-blue-200/50">
-              <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Sparkles className="h-4 w-4 text-white" />
+                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
+                <p className="text-gray-400">{feature.description}</p>
+                <div className="rounded-2xl absolute inset-0 pointer-events-none z-[-1] overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-purple-500 to-transparent"></div>
+                  <div className="absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-cyan-500 to-transparent"></div>
+                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-purple-500 to-transparent"></div>
+                  <div className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-transparent via-cyan-500 to-transparent"></div>
                 </div>
-                <div className="space-y-3">
-                  <h3 className="font-bold text-gray-800">💡 Tips untuk hasil terbaik:</h3>
-                  <ul className="text-sm text-gray-600 space-y-2">
-                    <li className="flex items-center space-x-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      <span>Pastikan struk terlihat jelas dan tidak buram</span>
-                    </li>
-                    <li className="flex items-center space-x-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      <span>Hindari bayangan atau pantulan cahaya</span>
-                    </li>
-                    <li className="flex items-center space-x-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      <span>Foto seluruh struk dari atas ke bawah</span>
-                    </li>
-                    <li className="flex items-center space-x-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      <span>Pastikan pencahayaan cukup terang</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </GlassCard>
-          </motion.div>
-        )}
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-        {/* Error State */}
-        {error && (
+      {/* Testimonials Section */}
+      <section className="relative z-10 py-20 px-6 md:px-8">
+        <div className="max-w-7xl mx-auto">
           <motion.div
-            key="error"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-          >
-            <GlassCard className="p-6 bg-red-500/5 border-red-200/50">
-              <div className="flex items-center space-x-3">
-                <AlertCircle className="h-8 w-8 text-red-500" />
-                <div className="flex-1">
-                  <h3 className="font-bold text-red-700 mb-1">Terjadi Kesalahan</h3>
-                  <p className="text-red-600 text-sm">{error}</p>
-                </div>
-              </div>
-              <motion.button
-                onClick={resetScan}
-                className="mt-4 btn-primary w-full"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                Coba Lagi
-              </motion.button>
-            </GlassCard>
-          </motion.div>
-        )}
-
-        {/* Processing State */}
-        {isScanning && (
-          <motion.div
-            key="processing"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="space-y-6"
-          >
-            {/* Preview Image */}
-            {previewUrl && (
-              <GlassCard className="p-4">
-                <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100">
-                  <img
-                    src={previewUrl || "/placeholder.svg"}
-                    alt="Receipt preview"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              </GlassCard>
-            )}
-
-            <GlassCard className="p-8 text-center">
-              <div className="space-y-6">
-                <motion.div
-                  className="w-20 h-20 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-3xl flex items-center justify-center mx-auto"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-                >
-                  <Loader2 className="h-10 w-10 text-white" />
-                </motion.div>
-
-                <div className="space-y-2">
-                  <h3 className="text-xl font-bold text-gray-800">Memproses Struk...</h3>
-                  <p className="text-gray-600">AI Gemini sedang membaca dan menganalisis struk Anda</p>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                  <motion.div
-                    className="bg-gradient-to-r from-purple-500 to-cyan-500 h-2 rounded-full"
-                    initial={{ width: "0%" }}
-                    animate={{ width: `${progress}%` }}
-                    transition={{ duration: 0.5 }}
-                  />
-                </div>
-                <p className="text-sm text-gray-500">{progress}% selesai</p>
-
-                <p className="text-xs text-gray-500">Proses ini biasanya memakan waktu 5-10 detik</p>
-              </div>
-            </GlassCard>
-          </motion.div>
-        )}
-
-        {/* Scan Result */}
-        {scanResult && (
-          <motion.div
-            key="result"
             initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-6"
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
           >
-            {/* Success Header */}
-            <GlassCard className="p-6 bg-green-500/5 border-green-200/50">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-teal-500 rounded-2xl flex items-center justify-center">
-                  <CheckCircle className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-green-700">Struk Berhasil Diproses!</h3>
-                  <p className="text-green-600 text-sm">
-                    AI telah mengidentifikasi {scanResult.items?.length || 0} item dari{" "}
-                    {scanResult.restaurant_info?.name || "restoran"}
-                  </p>
-                </div>
-              </div>
-            </GlassCard>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Dipercaya Pengguna
+            </h2>
+            <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+              Lihat apa kata mereka tentang Patungan
+            </p>
+          </motion.div>
 
-            {/* Receipt Preview */}
-            <GlassCard className="p-6">
-              <div className="space-y-6">
-                {/* Restaurant Info */}
-                <div className="text-center space-y-2 pb-4 border-b border-gray-100">
-                  <h3 className="text-xl font-bold text-gray-800">
-                    {scanResult.restaurant_info?.name || "Unknown Restaurant"}
-                  </h3>
-                  {scanResult.restaurant_info?.address && (
-                    <p className="text-gray-600 text-sm">{scanResult.restaurant_info.address}</p>
-                  )}
-                  <div className="flex justify-center space-x-4 text-xs text-gray-500">
-                    {scanResult.restaurant_info?.date && <span>{scanResult.restaurant_info.date}</span>}
-                    {scanResult.restaurant_info?.time && <span>{scanResult.restaurant_info.time}</span>}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {testimonials.map((testimonial, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+                className="relative p-6 bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl"
+              >
+                <div className="flex items-center mb-4">
+                  <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                    {testimonial.avatar}
+                  </div>
+                  <div className="ml-3">
+                    <h4 className="font-semibold">{testimonial.name}</h4>
+                    <p className="text-gray-400 text-sm">{testimonial.role}</p>
                   </div>
                 </div>
-
-                {/* Items */}
-                <div className="space-y-3">
-                  {scanResult.items?.map((item: any, index: number) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className="flex justify-between items-center py-3 border-b border-gray-50 last:border-b-0"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <span className="text-lg">{getCategoryIcon(item.category_guess)}</span>
-                          <span className="font-semibold text-gray-800">{item.name}</span>
-                        </div>
-                        <div className="flex items-center space-x-3 text-xs text-gray-500">
-                          <span>
-                            {item.quantity}x @ Rp {item.unit_price?.toLocaleString("id-ID")}
-                          </span>
-                          {item.sharing_potential > 0.5 && (
-                            <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-xs">
-                              Bisa Dibagi
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      <div className="font-bold text-gray-800">Rp {item.total_price?.toLocaleString("id-ID")}</div>
-                    </motion.div>
+                <p className="text-gray-300 mb-4">"{testimonial.text}"</p>
+                <div className="flex text-yellow-400">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="h-4 w-4 fill-current" />
                   ))}
                 </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-                {/* Summary */}
-                <div className="space-y-3 pt-4 border-t border-gray-200">
-                  {scanResult.summary?.subtotal && (
-                    <div className="flex justify-between text-gray-600 text-sm">
-                      <span>Subtotal</span>
-                      <span>Rp {scanResult.summary.subtotal.toLocaleString("id-ID")}</span>
-                    </div>
-                  )}
-                  {scanResult.summary?.discount && scanResult.summary.discount > 0 && (
-                    <div className="flex justify-between text-gray-600 text-sm">
-                      <span>Diskon</span>
-                      <span>- Rp {scanResult.summary.discount.toLocaleString("id-ID")}</span>
-                    </div>
-                  )}
-                  {scanResult.summary?.tax > 0 && (
-                    <div className="flex justify-between text-gray-600 text-sm">
-                      <span>Pajak</span>
-                      <span>Rp {scanResult.summary.tax.toLocaleString("id-ID")}</span>
-                    </div>
-                  )}
-                  {scanResult.summary?.ppn > 0 && (
-                    <div className="flex justify-between text-gray-600 text-sm">
-                      <span>PPN</span>
-                      <span>Rp {scanResult.summary.ppn.toLocaleString("id-ID")}</span>
-                    </div>
-                  )}
-                  {scanResult.summary?.service_charge > 0 && (
-                    <div className="flex justify-between text-gray-600 text-sm">
-                      <span>Service Charge</span>
-                      <span>Rp {scanResult.summary.service_charge.toLocaleString("id-ID")}</span>
-                    </div>
-                  )}
-                  {scanResult.summary?.points_redeemed > 0 && (
-                    <div className="flex justify-between text-gray-600 text-sm">
-                      <span>Poin Ditebus</span>
-                      <span>- Rp {scanResult.summary.points_redeemed.toLocaleString("id-ID")}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-bold text-lg text-gray-800 border-t pt-3">
-                    <span>Total</span>
-                    <span>Rp {scanResult.summary?.total?.toLocaleString("id-ID")}</span>
-                  </div>
-                </div>
-
-                {/* Payment Info */}
-                {scanResult.payment_info?.method && (
-                  <div className="space-y-2 pt-4 border-t border-gray-200">
-                    <div className="flex items-center space-x-2 text-gray-700">
-                      <CreditCard className="h-4 w-4" />
-                      <span className="font-semibold">Informasi Pembayaran:</span>
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      Metode: {scanResult.payment_info.method}
-                      {scanResult.payment_info.card_last_digits &&
-                        ` (**** ${scanResult.payment_info.card_last_digits})`}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </GlassCard>
-
-            {/* Action Button */}
-            <div className="flex flex-col gap-4">
+      {/* CTA Section */}
+      <section className="relative z-10 py-20 px-6 md:px-8">
+        <div className="max-w-4xl mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="relative p-8 md:p-12 rounded-3xl overflow-hidden"
+            style={{
+              background: "linear-gradient(120deg, rgba(139, 92, 246, 0.15), rgba(34, 211, 238, 0.15))",
+              boxShadow: "0 0 40px rgba(139, 92, 246, 0.1)",
+              border: "1px solid rgba(139, 92, 246, 0.2)"
+            }}
+          >
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(139,92,246,0.1),transparent_70%)]"></div>
+            
+            <div className="relative z-10">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                Siap Mengubah Cara Split Bill?
+              </h2>
+              <p className="text-gray-300 text-lg mb-8 max-w-2xl mx-auto">
+                Bergabung dengan ribuan pengguna yang sudah merasakan kemudahan Patungan
+              </p>
+              
               <motion.button
-                onClick={createLocalSession}
-                className="btn-primary w-full flex items-center justify-center space-x-2"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setIsAuthModalOpen(true)}
+                className="group relative px-8 py-4 rounded-full font-semibold text-lg overflow-hidden"
+                style={{
+                  background: "linear-gradient(90deg, #8b5cf6, #06b6d4)",
+                  boxShadow: "0 0 15px rgba(139, 92, 246, 0.4)"
+                }}
               >
-                <span>Hitung Lokal</span>
-                <ArrowRight className="h-5 w-5" />
+                <span className="relative z-10 flex items-center">
+                  Daftar Sekarang - Gratis!
+                  <Sparkles className="ml-2 h-5 w-5 group-hover:rotate-12 transition-transform" />
+                </span>
               </motion.button>
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
+        </div>
+      </section>
 
-      {/* Attribution */}
-      <div className="text-center text-xs text-gray-500 mt-8">
-        <p>
-          Powered by <span className="font-semibold">IBM Granite</span>,{" "}
-          <span className="font-semibold">Google Gemini</span>, and <span className="font-semibold">v0 by Vercel</span>.
-        </p>
-        <p className="mt-1">
-          Created by <span className="font-semibold">Al-Ghani Desta Setyawan</span> for Hacktiv8 Capstone Project.
-        </p>
-      </div>
+      {/* Footer */}
+      <footer className="relative z-10 py-12 px-6 md:px-8 border-t border-white/10">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <div className="flex items-center space-x-2 mb-4 md:mb-0">
+              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-lg flex items-center justify-center">
+                <Wallet className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-xl font-bold">Patungan</span>
+            </div>
+            
+            <div className="flex items-center space-x-6 text-gray-400">
+              <a href="#" className="hover:text-white transition-colors">Privacy</a>
+              <a href="#" className="hover:text-white transition-colors">Terms</a>
+              <a href="#" className="hover:text-white transition-colors">Support</a>
+            </div>
+          </div>
+          
+          <div className="mt-8 pt-8 border-t border-white/10 text-center text-gray-400">
+            <p>&copy; 2025 Patungan. Made with ❤️ for better financial collaboration.</p>
+          </div>
+        </div>
+      </footer>
+
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+      />
     </div>
   )
 }
