@@ -4,8 +4,9 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGroup } from "@/contexts/GroupContext";
 import { BackgroundBeams } from "@/components/ui/background-beams";
-import { Plus, Users, ArrowLeft } from "lucide-react";
+import { Plus, Users, ArrowLeft, PlusCircle } from "lucide-react";
 import { CreateGroupModal } from "@/components/groups/CreateGroupModal";
 import { GroupCard } from "@/components/groups/GroupCard";
 
@@ -13,7 +14,17 @@ export default function GroupsPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [groups, setGroups] = useState([]);
+  
+  interface GroupType {
+    id: string;
+    name: string;
+    description: string;
+    memberCount: number;
+    avatarUrl: string | null;
+    recentActivity: string;
+  }
+  
+  const [groups, setGroups] = useState<GroupType[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Redirect to landing page if not authenticated
@@ -29,42 +40,76 @@ export default function GroupsPage() {
   const fetchUserGroups = async () => {
     setLoading(true);
     try {
-      // TODO: Replace with actual Firebase fetch
-      // This is placeholder data for UI development
-      setTimeout(() => {
-        setGroups([
-          {
-            id: "group1",
-            name: "Anak Kostan",
-            description: "Grup untuk patungan anak-anak kost",
-            memberCount: 5,
-            avatarUrl: null,
-            recentActivity: "2 hari yang lalu"
-          },
-          {
-            id: "group2",
-            name: "Tim Futsal",
-            description: "Patungan bayar lapangan dan minum",
-            memberCount: 8,
-            avatarUrl: null,
-            recentActivity: "1 minggu yang lalu"
-          }
-        ]);
-        setLoading(false);
-      }, 1000);
+      // Get the group context
+      const groupContext = useGroup();
+      
+      // Fetch groups from Firebase
+      await groupContext.fetchUserGroups();
+      
+      // Update the local state with groups from context
+      setGroups(groupContext.userGroups.map(group => ({
+        id: group.id,
+        name: group.name,
+        description: group.description || "",
+        memberCount: group.members?.filter(m => m.status === 'active').length || 0,
+        avatarUrl: group.avatarUrl || null,
+        recentActivity: calculateRecentActivity(group.updatedAt)
+      })));
+      
+      setLoading(false);
     } catch (error) {
       console.error("Error fetching groups:", error);
       setLoading(false);
     }
   };
+  
+  // Helper function to calculate relative time for display
+  const calculateRecentActivity = (timestamp: number): string => {
+    const now = Date.now();
+    const diff = now - timestamp;
+    
+    // Convert to days/hours/minutes
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor(diff / (1000 * 60));
+    
+    if (days > 0) {
+      return `${days} hari yang lalu`;
+    } else if (hours > 0) {
+      return `${hours} jam yang lalu`;
+    } else if (minutes > 0) {
+      return `${minutes} menit yang lalu`;
+    } else {
+      return 'Baru saja';
+    }
+  };
 
-  const handleCreateGroup = async (groupData) => {
+  interface GroupDataType {
+    name: string;
+    description: string;
+    invites?: string[];
+  }
+
+  const handleCreateGroup = async (groupData: GroupDataType) => {
     try {
-      // TODO: Implement actual group creation with Firebase
-      console.log("Creating group:", groupData);
+      const { createGroup } = useGroup();
+      
+      // Create the new group in Firebase
+      const groupId = await createGroup({
+        name: groupData.name,
+        description: groupData.description,
+        invites: groupData.invites || []
+      });
+      
+      if (groupId) {
+        // Group created successfully, refresh the list
+        await fetchUserGroups();
+        
+        // Navigate to the group detail page
+        router.push(`/groups/${groupId}`);
+      }
+      
       setIsCreateModalOpen(false);
-      // Refetch groups after creation
-      fetchUserGroups();
     } catch (error) {
       console.error("Error creating group:", error);
     }
@@ -84,6 +129,7 @@ export default function GroupsPage() {
               <button
                 onClick={() => router.push("/dashboard")}
                 className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                aria-label="Return to dashboard"
               >
                 <ArrowLeft size={20} />
               </button>

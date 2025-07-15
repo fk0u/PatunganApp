@@ -75,6 +75,9 @@ export default function SubscriptionsPage() {
   useEffect(() => {
     if (!user) {
       router.push('/')
+    } else {
+      // Load user's subscriptions - this will be handled by the context
+      // The useSubscriptions hook already sets up listeners when the component mounts
     }
   }, [user, router])
   
