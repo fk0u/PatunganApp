@@ -31,15 +31,15 @@ import { toast } from "sonner"
 export default function TransactionDetailPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const { getSessionById, getTransactionById } = useSessions()
+  const { getSessionById } = useSessions()
   
   const [session, setSession] = useState<any>(null)
   const [transaction, setTransaction] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [participants, setParticipants] = useState<any[]>([])
   
-  // This function would need to be added to the SessionContext
-  const getTransactionById = async (sessionId: string, transactionId: string) => {
+  // Local function to fetch transaction by ID
+  const fetchTransactionById = async (sessionId: string, transactionId: string) => {
     try {
       const sessionData = await getSessionById(sessionId)
       if (!sessionData) return null
@@ -61,10 +61,14 @@ export default function TransactionDetailPage() {
     const fetchData = async () => {
       setLoading(true)
       
-      // Get URL params - in a real implementation, you would use useParams()
-      const urlParams = new URLSearchParams(window.location.search)
-      const sessionId = urlParams.get('sessionId')
-      const transactionId = urlParams.get('transactionId')
+      // Get URL params - safely handle server-side rendering
+      let sessionId, transactionId;
+      
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search)
+        sessionId = urlParams.get('sessionId')
+        transactionId = urlParams.get('transactionId')
+      }
       
       if (!sessionId || !transactionId) {
         toast.error("ID sesi atau transaksi tidak ditemukan")
@@ -83,7 +87,7 @@ export default function TransactionDetailPage() {
         setSession(sessionData)
         
         // Get transaction data
-        const transactionData = await getTransactionById(sessionId, transactionId)
+        const transactionData = await fetchTransactionById(sessionId, transactionId)
         if (!transactionData) {
           toast.error("Transaksi tidak ditemukan")
           router.push(`/sessions/${sessionId}`)

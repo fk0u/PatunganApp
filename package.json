@@ -6,7 +6,8 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "deploy": "next build && vercel deploy --prod"
   },
   "dependencies": {
     "@ai-sdk/google": "latest",

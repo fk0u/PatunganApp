@@ -83,8 +83,8 @@ export function SplashScreen({ onComplete }: { onComplete: () => void }) {
                   key={i}
                   className="absolute w-1 h-1 bg-white/20 rounded-full"
                   initial={{ 
-                    x: Math.random() * window.innerWidth, 
-                    y: Math.random() * window.innerHeight,
+                    x: typeof window !== 'undefined' ? Math.random() * window.innerWidth : Math.random() * 1000, 
+                    y: typeof window !== 'undefined' ? Math.random() * window.innerHeight : Math.random() * 1000,
                     opacity: Math.random() * 0.5 + 0.3
                   }}
                   animate={{

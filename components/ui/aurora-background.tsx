@@ -55,6 +55,9 @@ export function AuroraBackground({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     
+    // Check for browser environment
+    if (typeof window === 'undefined') return;
+    
     // Set canvas size to match parent
     const resizeCanvas = () => {
       const parent = canvas.parentElement

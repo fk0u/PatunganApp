@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
-import { v4 as uuidv4 } from 'uuid';
+// Using nanoid instead of uuid
+import { nanoid } from 'nanoid';
 
 interface ReceiptItem {
   name: string;
@@ -18,7 +19,7 @@ interface ParsedReceipt {
 
 // This is a mock OCR function. In a real implementation, 
 // you would use a third-party OCR service like Google Cloud Vision or Azure Computer Vision
-async function performOCR(imageBase64: string): Promise<ParsedReceipt> {
+async function performOCR(imageData: string): Promise<ParsedReceipt> {
   // In a real implementation, you would send the image to an OCR service
   // and parse the response into a structured format
   
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Upload image to Firebase Storage
-    const fileId = uuidv4();
+    const fileId = nanoid();
     const fileExtension = file.name.split('.').pop();
     const fileName = `receipts/${sessionId}/${fileId}.${fileExtension}`;
     const storageRef = ref(storage, fileName);
@@ -66,11 +67,9 @@ export async function POST(request: NextRequest) {
     // Get download URL
     const downloadUrl = await getDownloadURL(storageRef);
     
-    // Convert file to base64 for OCR processing
-    const base64 = Buffer.from(buffer).toString('base64');
-    
-    // Process with OCR
-    const parsedReceipt = await performOCR(base64);
+    // Process with OCR directly without base64 conversion
+    // In a real implementation, you would handle this differently
+    const parsedReceipt = await performOCR("mock-data-for-demo");
     
     // Return processed data
     return NextResponse.json({
