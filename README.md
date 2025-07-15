@@ -1,92 +1,115 @@
-# Patungan - Social Finance Hub
+# Patungan - Aplikasi Split Bill Modern dengan AI
 
-Patungan adalah aplikasi inovatif yang dirancang untuk menyederhanakan proses pembagian tagihan dan pelacakan pengeluaran sosial Anda. Dengan memanfaatkan kekuatan AI dan antarmuka yang intuitif, Patungan membuat pengelolaan keuangan bersama teman atau keluarga menjadi mudah dan menyenangkan.
+<div align="center">
+  <img src="public/placeholder-logo.svg" alt="Patungan Logo" width="120" />
+  <h3>Patungan App</h3>
+  <p>Platform Split Bill Modern dengan Teknologi AI</p>
+</div>
 
-## Fitur Utama
+## 📋 Deskripsi
 
-*   **Scan Struk Cerdas**: Manfaatkan kekuatan AI (Google Gemini) untuk secara otomatis mengekstrak detail item, harga, pajak, dan total dari foto struk Anda.
-*   **Input Item Manual**: Tambahkan item secara manual ke sesi pembagian tagihan, dengan opsi untuk mengklaim atau membagi porsi. Anda juga dapat menghapus item yang tidak relevan.
-*   **Pembagian Fleksibel**: Mudah mengklaim item personal atau membagi item yang bisa dibagi dengan porsi yang disesuaikan antar peserta.
-*   **AI Chat**: Berinteraksi dengan AI (IBM Granite) untuk mendapatkan analisis, tips keuangan, atau jawaban atas pertanyaan terkait pengeluaran Anda.
-*   **Laporan Pengeluaran Lokal**: Lihat riwayat sesi pembagian tagihan Anda yang disimpan secara lokal di perangkat Anda, memberikan ringkasan pengeluaran dari waktu ke waktu.
-*   **Antarmuka Responsif & Estetik**: Desain yang modern dan responsif, dioptimalkan untuk pengalaman seluler yang mulus, dengan *navbar* atas yang *sticky* dan elemen UI yang menarik.
-*   **Informasi Lokasi & Waktu**: Aplikasi menampilkan salam dinamis, lokasi, dan waktu saat ini berdasarkan data perangkat pengguna.
+Patungan adalah aplikasi inovatif yang dirancang untuk menyederhanakan proses pembagian tagihan dan pelacakan pengeluaran sosial. Dengan memanfaatkan kekuatan AI dan antarmuka yang intuitif, Patungan membuat pengelolaan keuangan bersama teman atau keluarga menjadi mudah dan menyenangkan.
 
-## Teknologi yang Digunakan
+## ✨ Fitur Utama
 
-*   **Next.js 14 (App Router)**: Framework React untuk aplikasi web *full-stack*.
-*   **React 19**: Library JavaScript untuk membangun antarmuka pengguna.
-*   **Tailwind CSS**: Framework CSS untuk *styling* yang cepat dan responsif.
-*   **shadcn/ui**: Komponen UI yang dapat disesuaikan dan mudah diakses.
-*   **Framer Motion**: Library untuk animasi UI yang lancar.
-*   **Google Gemini**: Model AI untuk pemrosesan gambar (OCR) dan ekstraksi data struk.
-*   **IBM Granite**: Model AI untuk kemampuan *chat* dan analisis teks.
-*   **v0 by Vercel**: Platform AI-powered untuk menghasilkan kode UI.
-*   **LocalStorage**: Digunakan untuk persistensi data sesi laporan pengeluaran secara lokal di sisi klien.
-*   **Geolocation API**: Untuk mendapatkan lokasi pengguna.
+- **Scan Struk Cerdas**: Manfaatkan kekuatan AI (Google Gemini) untuk secara otomatis mengekstrak detail item, harga, pajak, dan total dari foto struk.
+- **Mode Split Bill**: Pilih antara mode lokal (perangkat ini saja) atau mode online (bagikan dengan link) untuk pembagian tagihan.
+- **Pembagian Fleksibel**: Mudah mengklaim item personal atau membagi item yang bisa dibagi dengan porsi yang disesuaikan antar peserta.
+- **Input Item Manual**: Tambahkan item secara manual ke sesi pembagian tagihan, dengan opsi untuk mengklaim atau membagi porsi.
+- **QR Code Sharing**: Bagikan sesi pembagian tagihan dengan mudah melalui QR code yang dapat dipindai.
+- **AI Chat**: Berinteraksi dengan AI untuk mendapatkan analisis, tips keuangan, atau jawaban atas pertanyaan terkait pengeluaran.
+- **Antarmuka Responsif & Estetik**: Desain yang modern dan responsif, dioptimalkan untuk pengalaman seluler yang mulus.
+- **Informasi Lokasi & Waktu**: Aplikasi menampilkan salam dinamis, lokasi, dan waktu saat ini berdasarkan data perangkat pengguna.
 
-## Instalasi dan Setup
+## 🚀 Teknologi yang Digunakan
 
-Untuk menjalankan proyek ini secara lokal, ikuti langkah-langkah berikut:
+- **Frontend**: Next.js 14 (App Router), React, TypeScript
+- **Styling**: Tailwind CSS, Framer Motion, glassmorphic UI
+- **UI Components**: shadcn/ui, Lucide Icons
+- **AI Integration**: Google Gemini API, IBM Granite
+- **Authentication**: Firebase Authentication
+- **State Management**: React Context API dan React Hooks
+- **Storage**: Local Storage, Session Storage
+- **Location**: Geolocation API, OpenStreetMap (Nominatim)
+- **QR Code**: react-qr-code
+- **Deployment**: Vercel
 
-1.  **Clone repositori:**
-    \`\`\`bash
-    git clone <URL_REPOSITORI_ANDA>
-    cd patungan-social-finance-hub
-    \`\`\`
+## 💻 Instalasi dan Setup
 
-2.  **Instal dependensi:**
-    \`\`\`bash
-    npm install
-    # atau
-    yarn install
-    \`\`\`
+```bash
+# Clone repository
+git clone https://github.com/yourusername/patungan-app.git
+cd patungan-app
 
-3.  **Konfigurasi Environment Variables:**
-    Buat file `.env.local` di root proyek Anda dan tambahkan *environment variables* berikut:
+# Install dependencies
+npm install
+# atau
+pnpm install
+# atau
+yarn install
 
-    \`\`\`
-    GEMINI_API_KEY=YOUR_GOOGLE_GEMINI_API_KEY
-    REPLICATE_API_TOKEN=YOUR_REPLICATE_API_TOKEN
-    \`\`\`
-    *   Anda bisa mendapatkan `GEMINI_API_KEY` dari Google AI Studio.
-    *   Anda bisa mendapatkan `REPLICATE_API_TOKEN` dari Replicate.com. Pastikan Anda memiliki akses ke model `meta/llama-3-8b-instruct` atau model lain yang kompatibel.
+# Konfigurasi Environment Variables
+# Buat file .env.local berdasarkan .env.example
+GEMINI_API_KEY=YOUR_GOOGLE_GEMINI_API_KEY
+REPLICATE_API_TOKEN=YOUR_REPLICATE_API_TOKEN
 
-4.  **Jalankan aplikasi:**
-    \`\`\`bash
-    npm run dev
-    # atau
-    yarn dev
-    \`\`\`
+# Run development server
+npm run dev
+# atau
+pnpm dev
+# atau
+yarn dev
 
-    Aplikasi akan berjalan di `http://localhost:3000`.
+# Build untuk production
+npm run build
+# atau
+pnpm build
+# atau
+yarn build
+```
 
-## Penggunaan
+## 📱 Penggunaan
 
-1.  **Scan Struk**: Di halaman utama, Anda dapat mengunggah foto struk atau mengambilnya langsung dengan kamera. AI akan memprosesnya dan mengekstrak detail.
-2.  **Sesi Lokal**: Setelah struk diproses, Anda akan dibawa ke halaman sesi lokal di mana Anda dapat:
-    *   Menambahkan peserta.
-    *   Mengklaim item personal atau membagi item yang bisa dibagi antar peserta.
-    *   Menambahkan item secara manual jika ada yang terlewat atau tidak terdeteksi AI.
-    *   Menghapus item yang tidak diinginkan.
-    *   Melihat ringkasan tagihan individual.
-    *   Menyelesaikan perhitungan dan menyimpan sesi ke riwayat.
-3.  **AI Chat**: Akses AI Chat dari menu navigasi untuk bertanya tentang pengeluaran atau mendapatkan tips keuangan.
-4.  **Laporan Pengeluaran**: Kunjungi halaman laporan dari menu navigasi untuk melihat riwayat sesi Anda yang tersimpan secara lokal.
+1. **Scan Struk**: Di dashboard, pilih "Scan Struk" dan tentukan mode (Lokal/Online).
+2. **Upload Struk**: Upload foto struk dari galeri atau ambil foto dengan kamera.
+3. **Proses AI**: AI akan memproses struk dan mengekstrak informasi.
+4. **Sesi Split Bill**: 
+   - Tambahkan peserta
+   - Klaim item atau bagi di antara peserta
+   - Tambahkan item manual jika diperlukan
+   - Lihat ringkasan pembagian
+5. **Bagikan Hasil**: Bagikan hasil perhitungan melalui QR code atau link.
+6. **AI Chat**: Akses AI Chat untuk analisis atau saran keuangan.
 
-## Atribusi
+## 🤝 Kontribusi
 
-Aplikasi ini dibangun dengan bantuan teknologi AI canggih:
-*   **IBM Granite**
-*   **Google Gemini**
-*   **v0 by Vercel**
+Kontribusi selalu disambut! Silakan fork repositori, buat branch fitur, dan ajukan pull request.
 
-Dibuat oleh **Al-Ghani Desta Setyawan** untuk memenuhi tugas proyek capstone Hacktiv8.
+1. Fork repositori
+2. Buat branch fitur (`git checkout -b feature/amazing-feature`)
+3. Commit perubahan (`git commit -m 'Add amazing feature'`)
+4. Push ke branch (`git push origin feature/amazing-feature`)
+5. Buka Pull Request
 
-## Kontribusi
+## 📄 Lisensi
 
-Kontribusi sangat dihargai! Jika Anda memiliki saran atau ingin berkontribusi, silakan buka *issue* atau *pull request*.
+Didistribusikan di bawah lisensi MIT. Lihat `LICENSE` untuk informasi lebih lanjut.
 
-## Lisensi
+## 🙏 Acknowledgements
 
-[Tambahkan informasi lisensi di sini, contoh: MIT License]
+- [Next.js](https://nextjs.org/)
+- [React](https://reactjs.org/)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [shadcn/ui](https://ui.shadcn.com/)
+- [Framer Motion](https://www.framer.com/motion/)
+- [Google Gemini](https://ai.google.dev/)
+- [IBM Granite](https://ibm.com/products/granite)
+- [Firebase](https://firebase.google.com/)
+- [Vercel](https://vercel.com/)
+
+---
+
+<div align="center">
+  <p>Dibuat dengan ❤️ oleh Al-Ghani Desta Setyawan</p>
+  <p>© 2025 Patungan App. All rights reserved.</p>
+</div>

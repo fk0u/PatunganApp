@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { GlassCard } from "@/components/ui/glass-card"
-import { Home, Menu, X, Sparkles, BarChart2, Info, MessageSquareText, Users, PlusCircle } from "lucide-react"
+import { Home, Menu, X, Sparkles, BarChart2, Info, MessageSquareText, Users, PlusCircle, CreditCard } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -19,6 +19,7 @@ export function MobileNavbar({ className }: { className?: string }) {
   const menuItems = [
     { href: "/", icon: Home, label: "Home" },
     { href: "/dashboard", icon: Users, label: "My Groups", requireAuth: true },
+    { href: "/subscriptions", icon: CreditCard, label: "Subscriptions", requireAuth: true },
     { href: "/local-session", icon: PlusCircle, label: "Quick Split" },
     { href: "/report", icon: BarChart2, label: "Expenses" },
     { href: "/chat", icon: MessageSquareText, label: "AI Chat" },

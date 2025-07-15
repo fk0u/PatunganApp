@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import QRCode from "react-qr-code"
+import { toast } from "sonner"
 import {
   Users,
   Plus,
@@ -132,6 +134,14 @@ export default function LocalSessionPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [copied, setCopied] = useState(false)
   const [isAIChatOpen, setIsAIChatOpen] = useState(false) // State for AI Chat dialog
+  const [currentUrl, setCurrentUrl] = useState<string>("")
+  
+  // Set the current URL when component mounts (client-side only)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setCurrentUrl(window.location.href)
+    }
+  }, [])
 
   useEffect(() => {
     const storedReceipt = sessionStorage.getItem("localReceiptData")
@@ -365,7 +375,8 @@ export default function LocalSessionPage() {
   }, [receiptData, users, items, calculateUserTotal])
 
   const handleShare = async (method: "copy" | "whatsapp" | "instagram" | "messenger" | "discord") => {
-    const message = generateShareMessage()
+    // Generate the basic message but also include the current URL
+    const message = generateShareMessage() + (currentUrl ? `\n\n🔗 ${currentUrl}` : '')
 
     switch (method) {
       case "copy":
@@ -1186,6 +1197,83 @@ export default function LocalSessionPage() {
                   <Share2 className="h-5 w-5 text-blue-600" />
                   <span className="font-semibold text-gray-800">Bagikan Hasil Pembagian</span>
                 </div>
+                
+                {/* QR Code */}
+                <div className="flex flex-col items-center mb-6">
+                  <div className="mb-2 text-sm text-gray-600 font-medium">Pindai untuk membuka tautan ini</div>
+                  <div className="w-48 h-48 bg-white p-4 rounded-lg shadow-md border border-blue-100">
+                    {currentUrl && (
+                      <div className="relative">
+                        <QRCode
+                          size={160}
+                          style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                          value={currentUrl}
+                          viewBox={`0 0 256 256`}
+                          fgColor="#3B82F6"
+                          bgColor="#FFFFFF"
+                        />
+                        <div className="absolute bottom-1 right-1 bg-white p-1 rounded-sm">
+                          <div className="w-5 h-5 bg-gradient-to-r from-blue-500 to-purple-500 rounded-sm"></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500 text-center max-w-xs">
+                    Bagikan tautan ini untuk melihat hasil pembagian tagihan bersama teman-teman
+                  </div>
+                </div>
+                
+                {/* Link Copy - Added for direct URL sharing */}
+                <div className="flex mb-2">
+                  <input
+                    type="text"
+                    value={currentUrl || "Loading URL..."}
+                    readOnly
+                    aria-label="Link share"
+                    title="Link share"
+                    className="flex-1 py-3 px-4 bg-white/5 backdrop-blur-sm border border-blue-100/30 rounded-l-lg text-sm text-gray-600"
+                  />
+                  <button
+                    onClick={() => {
+                      if (currentUrl) {
+                        navigator.clipboard.writeText(currentUrl);
+                        toast.success("Link disalin ke clipboard!");
+                      }
+                    }}
+                    className="py-3 px-4 bg-gradient-to-r from-blue-500 to-purple-500 rounded-r-lg text-white"
+                  >
+                    Salin
+                  </button>
+                </div>
+                
+                {/* Direct URL Share Buttons */}
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  <Button
+                    variant="outline"
+                    className="bg-green-50 text-green-600 border-green-200 hover:bg-green-100"
+                    onClick={() => {
+                      if (currentUrl) {
+                        window.open(`https://wa.me/?text=${encodeURIComponent(`Yuk ikut patungan di ${currentUrl}`)}`, "_blank")
+                      }
+                    }}
+                  >
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Bagikan via WhatsApp
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+                    onClick={() => {
+                      if (currentUrl) {
+                        window.open(`https://t.me/share/url?url=${encodeURIComponent(currentUrl)}&text=${encodeURIComponent('Yuk ikut patungan!')}`, "_blank")
+                      }
+                    }}
+                  >
+                    <span className="font-bold mr-2">t</span>
+                    Bagikan via Telegram
+                  </Button>
+                </div>
+                
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <Button variant="outline" onClick={() => handleShare("copy")} className="flex items-center space-x-2">
                     {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -1224,6 +1312,16 @@ export default function LocalSessionPage() {
                     <span>Discord</span>
                   </Button>
                 </div>
+                
+                {/* Skip Button */}
+                <Button 
+                  variant="outline" 
+                  className="w-full mt-4 border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-800 transition-all"
+                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Lewati
+                </Button>
               </GlassCard>
             </motion.div>
           )}

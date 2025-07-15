@@ -7,6 +7,9 @@ import { BackgroundPattern } from "@/components/ui/background-pattern"
 import { SplashScreen } from "@/components/ui/splash-screen"
 import { useState, useEffect } from "react"
 import { AuthProvider } from "@/contexts/AuthContext"
+import { GroupProvider } from "@/contexts/GroupContext"
+import { SubscriptionProvider } from "@/contexts/SubscriptionContext"
+import { SessionProvider } from "@/contexts/SessionContext"
 import { Toaster } from "@/components/ui/sonner"
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -26,15 +29,21 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   return (
     <AuthProvider>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange
-      >
-        {children}
-        <Toaster />
-      </ThemeProvider>
+      <GroupProvider>
+        <SubscriptionProvider>
+          <SessionProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              {children}
+              <Toaster />
+            </ThemeProvider>
+          </SessionProvider>
+        </SubscriptionProvider>
+      </GroupProvider>
     </AuthProvider>
   )
 }
