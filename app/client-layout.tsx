@@ -10,6 +10,7 @@ import { AuthProvider } from "@/contexts/AuthContext"
 import { GroupProvider } from "@/contexts/GroupContext"
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext"
 import { SessionProvider } from "@/contexts/SessionContext"
+import { ChatProvider } from "@/contexts/ChatContext"
 import { Toaster } from "@/components/ui/sonner"
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -32,15 +33,17 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       <GroupProvider>
         <SubscriptionProvider>
           <SessionProvider>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="system"
-              enableSystem
-              disableTransitionOnChange
-            >
-              {children}
-              <Toaster />
-            </ThemeProvider>
+            <ChatProvider>
+              <ThemeProvider
+                attribute="class"
+                defaultTheme="system"
+                enableSystem
+                disableTransitionOnChange
+              >
+                {children}
+                <Toaster />
+              </ThemeProvider>
+            </ChatProvider>
           </SessionProvider>
         </SubscriptionProvider>
       </GroupProvider>

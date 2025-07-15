@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react'
 import { useAuth } from './AuthContext'
 import { 
   collection, 
@@ -14,6 +14,8 @@ import {
   addDoc, 
   arrayUnion, 
   arrayRemove, 
+  onSnapshot,
+  serverTimestamp,
   Timestamp 
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -77,6 +79,9 @@ interface SubscriptionContextType {
   // Payment management
   recordPayment: (subscriptionId: string, paymentData: Omit<SubscriptionPayment, 'id' | 'subscriptionId' | 'status'>) => Promise<SubscriptionPayment>
   
+  // Real-time listeners
+  listenToSubscription: (subscriptionId: string, callback: (subscription: Subscription) => void) => () => void
+  
   // Helper
   refreshSubscriptions: () => Promise<void>
 }
@@ -100,18 +105,118 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
   const [userSubscriptions, setUserSubscriptions] = useState<Subscription[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const listeners = useRef<Array<() => void>>([])
+  
+  // Clean up listeners when component unmounts
+  useEffect(() => {
+    return () => {
+      listeners.current.forEach(unsubscribe => unsubscribe())
+    }
+  }, [])
 
-  // Fetch user's subscriptions on mount and when user changes
+  // Set up real-time listeners when user changes
   useEffect(() => {
     if (user) {
-      fetchUserSubscriptions()
+      // Clear any existing listeners
+      listeners.current.forEach(unsubscribe => unsubscribe())
+      listeners.current = []
+      
+      setupSubscriptionListeners()
     } else {
+      // Clear listeners and reset state
+      listeners.current.forEach(unsubscribe => unsubscribe())
+      listeners.current = []
       setUserSubscriptions([])
       setLoading(false)
     }
   }, [user])
 
-  // Fetch all subscriptions where the user is a participant
+  // Set up real-time listeners for subscriptions
+  const setupSubscriptionListeners = () => {
+    if (!user) return
+    
+    setLoading(true)
+    setError(null)
+    
+    try {
+      // Query subscriptions where user is a participant
+      const participantQuery = query(
+        collection(db, 'subscriptions'),
+        where('participants', 'array-contains', {
+          userId: user.uid,
+          status: 'active'
+        })
+      )
+      
+      // Query subscriptions where user is the primary payer
+      const payerQuery = query(
+        collection(db, 'subscriptions'),
+        where('primaryPayerId', '==', user.uid)
+      )
+      
+      // Set up real-time listeners
+      const participantUnsubscribe = onSnapshot(participantQuery, (snapshot) => {
+        const participantSubs = snapshot.docs.map(doc => 
+          ({ id: doc.id, ...doc.data() }) as Subscription
+        )
+        
+        updateSubscriptionsState(participantSubs, [])
+        setLoading(false)
+      }, (err) => {
+        console.error('Error in participant subscription listener:', err)
+        setError('Failed to listen to participant subscriptions')
+        setLoading(false)
+      })
+      
+      const payerUnsubscribe = onSnapshot(payerQuery, (snapshot) => {
+        const payerSubs = snapshot.docs.map(doc => 
+          ({ id: doc.id, ...doc.data() }) as Subscription
+        )
+        
+        updateSubscriptionsState([], payerSubs)
+        setLoading(false)
+      }, (err) => {
+        console.error('Error in primary payer subscription listener:', err)
+        setError('Failed to listen to primary payer subscriptions')
+        setLoading(false)
+      })
+      
+      // Store unsubscribe functions
+      listeners.current.push(participantUnsubscribe, payerUnsubscribe)
+      
+    } catch (err) {
+      console.error('Error setting up subscription listeners:', err)
+      setError('Failed to set up subscription listeners')
+      setLoading(false)
+    }
+  }
+  
+  // Helper function to update subscriptions state with new data
+  const updateSubscriptionsState = (participantSubs: Subscription[], payerSubs: Subscription[]) => {
+    setUserSubscriptions(prevSubs => {
+      // Start with participant subscriptions
+      const allSubs = [...participantSubs]
+      
+      // Add payer subscriptions that aren't already included
+      payerSubs.forEach(sub => {
+        if (!allSubs.some(s => s.id === sub.id)) {
+          allSubs.push(sub)
+        }
+      })
+      
+      // Keep existing subscriptions that haven't been updated
+      prevSubs.forEach(prevSub => {
+        if (!allSubs.some(s => s.id === prevSub.id) && 
+            !participantSubs.some(s => s.id === prevSub.id) && 
+            !payerSubs.some(s => s.id === prevSub.id)) {
+          allSubs.push(prevSub)
+        }
+      })
+      
+      return allSubs
+    })
+  }
+
   const fetchUserSubscriptions = async () => {
     if (!user) return
     
@@ -207,8 +312,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
       // Get the created subscription with ID
       const createdSubscription = { id: docRef.id, ...newSubscription }
       
-      // Update local state
-      setUserSubscriptions(prevSubs => [...prevSubs, createdSubscription])
+      // Update local state is now handled by real-time listeners
       
       return createdSubscription
     } catch (err) {
@@ -220,6 +324,11 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
 
   const getSubscriptionById = async (subscriptionId: string): Promise<Subscription | null> => {
     try {
+      // First check if it's in our local state
+      const localSub = userSubscriptions.find(sub => sub.id === subscriptionId)
+      if (localSub) return localSub
+      
+      // If not in local state, fetch from Firestore
       const subRef = doc(db, 'subscriptions', subscriptionId)
       const subDoc = await getDoc(subRef)
       
@@ -273,19 +382,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
         updatedAt: Date.now()
       })
       
-      // Update local state
-      setUserSubscriptions(prevSubs => 
-        prevSubs.map(sub => 
-          sub.id === subscriptionId 
-            ? { 
-                ...sub, 
-                ...updates, 
-                nextBillingDate, 
-                updatedAt: Date.now() 
-              } 
-            : sub
-        )
-      )
+      // Local state update is now handled by real-time listeners
     } catch (err) {
       console.error('Error updating subscription:', err)
       setError('Failed to update subscription')
@@ -318,14 +415,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
         updatedAt: Date.now()
       })
       
-      // Update local state
-      setUserSubscriptions(prevSubs => 
-        prevSubs.map(sub => 
-          sub.id === subscriptionId 
-            ? { ...sub, status: 'cancelled', updatedAt: Date.now() } 
-            : sub
-        )
-      )
+      // Local state update is now handled by real-time listeners
     } catch (err) {
       console.error('Error cancelling subscription:', err)
       setError('Failed to cancel subscription')
@@ -381,19 +471,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
         updatedAt: Date.now()
       })
       
-      // Update local state
-      setUserSubscriptions(prevSubs => 
-        prevSubs.map(sub => {
-          if (sub.id === subscriptionId) {
-            return {
-              ...sub,
-              participants: [...sub.participants, newParticipant],
-              updatedAt: Date.now()
-            }
-          }
-          return sub
-        })
-      )
+      // Local state update is now handled by real-time listeners
     } catch (err) {
       console.error('Error adding participant:', err)
       setError('Failed to add participant')
@@ -449,19 +527,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
         updatedAt: Date.now()
       })
       
-      // Update local state
-      setUserSubscriptions(prevSubs => 
-        prevSubs.map(sub => {
-          if (sub.id === subscriptionId) {
-            return {
-              ...sub,
-              participants: updatedParticipants,
-              updatedAt: Date.now()
-            }
-          }
-          return sub
-        })
-      )
+      // Local state update is now handled by real-time listeners
     } catch (err) {
       console.error('Error removing participant:', err)
       setError('Failed to remove participant')
@@ -505,19 +571,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
         updatedAt: Date.now()
       })
       
-      // Update local state
-      setUserSubscriptions(prevSubs => 
-        prevSubs.map(sub => {
-          if (sub.id === subscriptionId) {
-            return {
-              ...sub,
-              participants: updatedParticipants,
-              updatedAt: Date.now()
-            }
-          }
-          return sub
-        })
-      )
+      // Local state update is now handled by real-time listeners
     } catch (err) {
       console.error('Error updating participant share:', err)
       setError('Failed to update participant share')
@@ -569,19 +623,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
         updatedAt: Date.now()
       })
       
-      // Update local state
-      setUserSubscriptions(prevSubs => 
-        prevSubs.map(sub => {
-          if (sub.id === subscriptionId) {
-            return {
-              ...sub,
-              nextBillingDate,
-              updatedAt: Date.now()
-            }
-          }
-          return sub
-        })
-      )
+      // Local state update is now handled by real-time listeners
       
       return { id: paymentRef.id, ...newPayment }
     } catch (err) {
@@ -589,6 +631,26 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
       setError('Failed to record payment')
       throw new Error('Failed to record payment')
     }
+  }
+  
+  // Function to listen to a specific subscription in real-time
+  const listenToSubscription = (
+    subscriptionId: string, 
+    callback: (subscription: Subscription) => void
+  ) => {
+    const subscriptionRef = doc(db, 'subscriptions', subscriptionId)
+    
+    const unsubscribe = onSnapshot(subscriptionRef, (doc) => {
+      if (doc.exists()) {
+        const subscriptionData = { id: doc.id, ...doc.data() } as Subscription
+        callback(subscriptionData)
+      }
+    }, (error) => {
+      console.error('Error listening to subscription:', error)
+    })
+    
+    // Return the unsubscribe function so the caller can stop listening when needed
+    return unsubscribe
   }
 
   // Utility function to calculate next billing date
@@ -630,6 +692,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     removeParticipant,
     updateParticipantShare,
     recordPayment,
+    listenToSubscription,
     refreshSubscriptions
   }
 

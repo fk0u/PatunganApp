@@ -1,10 +1,49 @@
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai"
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "AIzaSyCgJ0lm3IusFVcMcjW_y8Aub65bragGr0c")
 
+// Safety settings
+const safetySettings = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+]
+
+// Type definition for a message
+export type Message = {
+  id?: string;
+  content: string;
+  sender: 'user' | 'assistant';
+  createdAt?: number;
+  sessionId?: string;
+  attachments?: {
+    type: 'image' | 'file';
+    url: string;
+    name: string;
+    size?: number;
+  }[];
+}
+
+// Process receipt with Gemini
 export async function processReceiptWithGemini(imageFile: File) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" })
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.0-flash-exp",
+      safetySettings
+    })
 
     // Convert file to base64
     const arrayBuffer = await imageFile.arrayBuffer()
@@ -80,5 +119,88 @@ Important notes:
   } catch (error) {
     console.error("Error processing receipt with Gemini:", error)
     throw new Error("Failed to process receipt. Please try again.")
+  }
+}
+
+// General chat generation with Gemini
+export async function geminiGenerate(
+  prompt: string, 
+  history: Message[] = [],
+  temperature: number = 0.7
+): Promise<string> {
+  try {
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-pro",
+      safetySettings,
+      generationConfig: {
+        temperature: temperature,
+        topP: 0.95,
+        topK: 40,
+        maxOutputTokens: 2048,
+      }
+    })
+
+    // Convert history to Gemini chat format
+    const chat = model.startChat({
+      history: history.map(msg => ({
+        role: msg.sender === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }]
+      })),
+      generationConfig: {
+        temperature: temperature,
+        topP: 0.95,
+        topK: 40,
+        maxOutputTokens: 2048,
+      }
+    })
+
+    // Generate the response
+    const result = await chat.sendMessage(prompt)
+    const response = await result.response
+    return response.text()
+  } catch (error) {
+    console.error("Error generating response with Gemini:", error)
+    return "I'm sorry, I encountered an error. Please try again."
+  }
+}
+
+// Financial advice with Gemini
+export async function getFinancialAdvice(
+  financialData: any,
+  prompt: string = "Provide financial advice based on this data"
+): Promise<string> {
+  try {
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-pro",
+      safetySettings,
+      generationConfig: {
+        temperature: 0.2, // Lower temperature for more factual responses
+        topP: 0.9,
+        topK: 40,
+        maxOutputTokens: 1024,
+      }
+    })
+
+    // Create a structured prompt with the financial data
+    const fullPrompt = `
+You are Moment, a financial assistant specialized in helping users manage their expenses, subscriptions, and group payments. 
+You provide friendly, practical advice based on Indonesian financial context.
+
+Here is the user's financial data:
+${JSON.stringify(financialData, null, 2)}
+
+The user is asking: ${prompt}
+
+Provide helpful, specific advice based on this data. Include practical tips for saving money, managing group expenses, 
+or subscription optimization as appropriate. Keep your response concise, friendly, and actionable.
+    `
+
+    // Generate the response
+    const result = await model.generateContent(fullPrompt)
+    const response = await result.response
+    return response.text()
+  } catch (error) {
+    console.error("Error getting financial advice with Gemini:", error)
+    return "I'm sorry, I couldn't analyze your financial data at this time. Please try again later."
   }
 }
