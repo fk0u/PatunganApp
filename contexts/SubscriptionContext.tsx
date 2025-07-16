@@ -16,7 +16,8 @@ import {
   arrayRemove, 
   onSnapshot,
   serverTimestamp,
-  Timestamp 
+  Timestamp,
+  limit
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
@@ -24,6 +25,7 @@ import { db } from '@/lib/firebase'
 interface Participant {
   userId: string
   displayName: string
+  email?: string
   share: number | null
   status: 'active' | 'invited' | 'removed'
 }
@@ -142,41 +144,37 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     setError(null)
     
     try {
-      // Query subscriptions where user is a participant
-      const participantQuery = query(
-        collection(db, 'subscriptions'),
-        where('participants', 'array-contains', {
-          userId: user.uid,
-          status: 'active'
-        })
-      )
-      
-      // Query subscriptions where user is the primary payer
+      // We need two queries because Firebase doesn't support complex array queries
+      // First, get subscriptions where user is the primary payer
       const payerQuery = query(
         collection(db, 'subscriptions'),
         where('primaryPayerId', '==', user.uid)
       )
       
-      // Set up real-time listeners
-      const participantUnsubscribe = onSnapshot(participantQuery, (snapshot) => {
-        const participantSubs = snapshot.docs.map(doc => 
-          ({ id: doc.id, ...doc.data() }) as Subscription
-        )
-        
-        updateSubscriptionsState(participantSubs, [])
-        setLoading(false)
-      }, (err) => {
-        console.error('Error in participant subscription listener:', err)
-        setError('Failed to listen to participant subscriptions')
-        setLoading(false)
-      })
+      // We can't query for array items with a specific structure,
+      // so we'll use a custom field to track all user IDs in the subscription
+      // Let's create a simpler, more targeted query first
+      const createdByQuery = query(
+        collection(db, 'subscriptions'),
+        where('createdBy', '==', user.uid)
+      )
       
+      // We still need to get all subscriptions to filter for participants
+      const allSubscriptionsQuery = query(
+        collection(db, 'subscriptions'),
+        // Add a limit to avoid getting too many documents
+        // In a production app, you'd use a dedicated participants collection
+        // or add an array of participant user IDs for efficient querying
+        limit(100)
+      )
+      
+      // Set up real-time listeners
       const payerUnsubscribe = onSnapshot(payerQuery, (snapshot) => {
         const payerSubs = snapshot.docs.map(doc => 
           ({ id: doc.id, ...doc.data() }) as Subscription
         )
         
-        updateSubscriptionsState([], payerSubs)
+        updateSubscriptionsState([], payerSubs, [])
         setLoading(false)
       }, (err) => {
         console.error('Error in primary payer subscription listener:', err)
@@ -184,8 +182,41 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
         setLoading(false)
       })
       
+      const createdByUnsubscribe = onSnapshot(createdByQuery, (snapshot) => {
+        const createdSubs = snapshot.docs.map(doc => 
+          ({ id: doc.id, ...doc.data() }) as Subscription
+        )
+        
+        updateSubscriptionsState([], [], createdSubs)
+        setLoading(false)
+      }, (err) => {
+        console.error('Error in created subscriptions listener:', err)
+        setError('Failed to listen to created subscriptions')
+        setLoading(false)
+      })
+      
+      const allSubscriptionsUnsubscribe = onSnapshot(allSubscriptionsQuery, (snapshot) => {
+        const allSubs = snapshot.docs.map(doc => 
+          ({ id: doc.id, ...doc.data() }) as Subscription
+        )
+        
+        // Filter for subscriptions where user is a participant
+        const participantSubs = allSubs.filter(sub => 
+          sub.participants.some(p => 
+            p.userId === user.uid && (p.status === 'active' || p.status === 'invited')
+          )
+        )
+        
+        updateSubscriptionsState(participantSubs, [], [])
+        setLoading(false)
+      }, (err) => {
+        console.error('Error in all subscriptions listener:', err)
+        setError('Failed to listen to participant subscriptions')
+        setLoading(false)
+      })
+      
       // Store unsubscribe functions
-      listeners.current.push(participantUnsubscribe, payerUnsubscribe)
+      listeners.current.push(allSubscriptionsUnsubscribe, payerUnsubscribe, createdByUnsubscribe)
       
     } catch (err) {
       console.error('Error setting up subscription listeners:', err)
@@ -195,7 +226,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
   }
   
   // Helper function to update subscriptions state with new data
-  const updateSubscriptionsState = (participantSubs: Subscription[], payerSubs: Subscription[]) => {
+  const updateSubscriptionsState = (participantSubs: Subscription[], payerSubs: Subscription[], createdSubs: Subscription[] = []) => {
     setUserSubscriptions(prevSubs => {
       // Start with participant subscriptions
       const allSubs = [...participantSubs]
@@ -207,11 +238,19 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
         }
       })
       
+      // Add created subscriptions that aren't already included
+      createdSubs.forEach(sub => {
+        if (!allSubs.some(s => s.id === sub.id)) {
+          allSubs.push(sub)
+        }
+      })
+      
       // Keep existing subscriptions that haven't been updated
       prevSubs.forEach(prevSub => {
         if (!allSubs.some(s => s.id === prevSub.id) && 
             !participantSubs.some(s => s.id === prevSub.id) && 
-            !payerSubs.some(s => s.id === prevSub.id)) {
+            !payerSubs.some(s => s.id === prevSub.id) &&
+            !createdSubs.some(s => s.id === prevSub.id)) {
           allSubs.push(prevSub)
         }
       })
@@ -227,44 +266,52 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     setError(null)
     
     try {
-      // Query subscriptions where user is a participant (including as primary payer)
-      const subscriptionsQuery = query(
+      // Get all subscriptions, then filter locally
+      const allSubscriptionsQuery = query(
         collection(db, 'subscriptions'),
-        where('participants', 'array-contains', {
-          userId: user.uid,
-          status: 'active'
-        })
+        limit(100)
       )
       
+      // Query subscriptions where user is the primary payer
       const primaryPayerQuery = query(
         collection(db, 'subscriptions'),
         where('primaryPayerId', '==', user.uid)
       )
       
-      const [participantSnapshot, payerSnapshot] = await Promise.all([
-        getDocs(subscriptionsQuery),
-        getDocs(primaryPayerQuery)
+      // Query subscriptions created by the user
+      const createdByQuery = query(
+        collection(db, 'subscriptions'),
+        where('createdBy', '==', user.uid)
+      )
+      
+      const [allSnapshot, payerSnapshot, createdSnapshot] = await Promise.all([
+        getDocs(allSubscriptionsQuery),
+        getDocs(primaryPayerQuery),
+        getDocs(createdByQuery)
       ])
       
-      const subscriptionsAsParticipant = participantSnapshot.docs.map(doc => 
+      // Get all subscriptions
+      const allSubscriptions = allSnapshot.docs.map(doc => 
         ({ id: doc.id, ...doc.data() }) as Subscription
+      )
+      
+      // Filter for subscriptions where user is a participant
+      const subscriptionsAsParticipant = allSubscriptions.filter(sub => 
+        sub.participants.some(p => 
+          p.userId === user.uid && (p.status === 'active' || p.status === 'invited')
+        )
       )
       
       const subscriptionsAsPayer = payerSnapshot.docs.map(doc => 
         ({ id: doc.id, ...doc.data() }) as Subscription
       )
       
-      // Combine and deduplicate
-      const allSubscriptions = [...subscriptionsAsParticipant]
+      const subscriptionsAsCreator = createdSnapshot.docs.map(doc => 
+        ({ id: doc.id, ...doc.data() }) as Subscription
+      )
       
-      // Add subscriptions where user is primary payer but not in participants list
-      subscriptionsAsPayer.forEach(sub => {
-        if (!allSubscriptions.some(s => s.id === sub.id)) {
-          allSubscriptions.push(sub)
-        }
-      })
-      
-      setUserSubscriptions(allSubscriptions)
+      // Use the updated state management function
+      updateSubscriptionsState(subscriptionsAsParticipant, subscriptionsAsPayer, subscriptionsAsCreator)
     } catch (err) {
       console.error('Error fetching subscriptions:', err)
       setError('Failed to fetch subscriptions')
@@ -728,9 +775,12 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
           status: 'active'
         }
         
-        // Update subscription participants
+        // Get current participants and add the new one
+        const updatedParticipants = [...subscription.participants, newParticipant];
+        
+        // Update subscription with all participants
         await updateDoc(subRef, {
-          participants: arrayUnion(newParticipant),
+          participants: updatedParticipants,
           updatedAt: Date.now()
         })
       }

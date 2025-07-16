@@ -185,8 +185,9 @@ export default function NewSubscriptionPage() {
         participants: participants.map(p => ({
           userId: p.userId || '',
           displayName: p.displayName,
+          email: p.email, // Make sure we store the email for better identification
           share: p.share,
-          status: p.status
+          status: 'invited'
         }))
       }
       

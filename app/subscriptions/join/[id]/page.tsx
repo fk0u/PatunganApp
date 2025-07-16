@@ -102,6 +102,11 @@ export default function JoinSubscriptionPage({ params }: JoinSubscriptionPagePro
       if (isMember) {
         setIsAlreadyMember(true)
       }
+      
+      // Log participant status for debugging
+      console.log("Current user:", user?.uid);
+      console.log("Participants:", data.participants);
+      console.log("Is member:", isMember);
     } catch (error) {
       console.error("Error fetching subscription:", error)
       toast.error("Gagal memuat data langganan")

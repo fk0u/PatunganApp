@@ -102,6 +102,8 @@ type Group = {
   pendingInvitations?: Invitation[];
   avatarUrl?: string | null;
   status: 'active' | 'archived';
+  memberCount?: number;
+  recentActivity?: string;
 };
 
 interface GroupContextType {
@@ -110,7 +112,7 @@ interface GroupContextType {
   loadingGroups: boolean;
   loadingCurrentGroup: boolean;
   fetchUserGroups: () => Promise<void>;
-  fetchGroupDetails: (groupId: string) => Promise<void>;
+  fetchGroupDetails: (groupId: string) => Promise<Group | null>;
   listenToGroup: (groupId: string, callback: (group: Group) => void) => () => void;
   createGroup: (groupData: any) => Promise<string | null>;
   updateGroup: (groupId: string, updates: Partial<Group>) => Promise<void>;
@@ -126,6 +128,7 @@ interface GroupContextType {
   updateMemberRole: (groupId: string, memberId: string, newRole: 'owner' | 'admin' | 'member') => Promise<void>;
   removeMember: (groupId: string, memberId: string) => Promise<void>;
   uploadGroupAvatar: (groupId: string, file: File) => Promise<string>;
+  saveReceiptSplit: (groupId: string, receiptData: any) => Promise<string | null>;
 }
 
 const GroupContext = createContext<GroupContextType | undefined>(undefined);
@@ -266,8 +269,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const fetchGroupDetails = async (groupId: string) => {
-    if (!user) return;
+  const fetchGroupDetails = async (groupId: string): Promise<Group | null> => {
+    if (!user) return null;
     
     setLoadingCurrentGroup(true);
     try {
@@ -374,6 +377,12 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           avatarUrl,
           updatedAt: serverTimestamp()
         });
+      }
+      
+      // Process invites if provided
+      if (groupData.invites && groupData.invites.length > 0) {
+        // Create invitations
+        await inviteToGroup(docRef.id, groupData.invites);
       }
       
       // Get the created group with ID
@@ -797,11 +806,12 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           });
           
           // Return the updated group
-          return { id: groupDoc.id, ...group, members: updatedMembers };
+          const updatedGroup = { ...group, members: updatedMembers };
+          return { ...updatedGroup, id: groupDoc.id };
         }
         
         // User is already an active member
-        return { id: groupDoc.id, ...group };
+        return { ...group, id: groupDoc.id };
       }
       
       // Create new member object
@@ -826,12 +836,12 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       });
       
       // Return the updated group
-      return { 
-        id: groupDoc.id, 
-        ...group, 
+      const updatedGroup = {
+        ...group,
         members: [...group.members, newMember],
         pendingInvitations: updatedInvitations
       };
+      return { id: groupDoc.id, ...updatedGroup };
     } catch (error) {
       console.error("Error accepting invitation:", error);
       return null;
@@ -1143,6 +1153,85 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const saveReceiptSplit = async (groupId: string, receiptData: any): Promise<string | null> => {
+    if (!user) return null;
+    
+    try {
+      // Get the current group
+      const groupRef = doc(db, 'groups', groupId);
+      const groupDoc = await getDoc(groupRef);
+      
+      if (!groupDoc.exists()) {
+        throw new Error('Group not found');
+      }
+      
+      const group = groupDoc.data() as Group;
+      
+      // Check if user is a member
+      const isMember = group.members.some(m => 
+        m.id === user.uid && m.status === 'active'
+      );
+      
+      if (!isMember) {
+        throw new Error('Not authorized to create sessions in this group');
+      }
+      
+      // Create the session object with receipt data
+      const newSession: Session = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: `${receiptData.merchant} - ${receiptData.date}`,
+        date: Date.now(),
+        totalAmount: receiptData.total,
+        participants: receiptData.participants || [],
+        status: 'active',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      
+      // Calculate balances from the receipt data
+      const newBalances: Balance[] = receiptData.balances.map((balance: any) => ({
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        fromUser: {
+          id: balance.fromId,
+          displayName: group.members.find(m => m.id === balance.fromId)?.displayName || 'Unknown'
+        },
+        toUser: {
+          id: balance.toId,
+          displayName: group.members.find(m => m.id === balance.toId)?.displayName || 'Unknown'
+        },
+        amount: balance.amount,
+        status: 'pending',
+        createdAt: Date.now()
+      }));
+      
+      // Add session and balances to group
+      await updateDoc(groupRef, {
+        sessions: arrayUnion(newSession),
+        balances: arrayUnion(...newBalances),
+        updatedAt: Date.now()
+      });
+      
+      // Update local state
+      if (currentGroup && currentGroup.id === groupId) {
+        setCurrentGroup(prev => {
+          if (!prev) return null;
+          
+          return {
+            ...prev,
+            sessions: [...(prev.sessions || []), newSession],
+            balances: [...(prev.balances || []), ...newBalances],
+            updatedAt: Date.now()
+          };
+        });
+      }
+      
+      return newSession.id;
+    } catch (error) {
+      console.error("Error saving receipt split:", error);
+      return null;
+    }
+  };
+
   const value = {
     userGroups,
     currentGroup,
@@ -1164,7 +1253,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     leaveGroup,
     updateMemberRole,
     removeMember,
-    uploadGroupAvatar
+    uploadGroupAvatar,
+    saveReceiptSplit
   };
 
   return (

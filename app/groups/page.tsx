@@ -92,10 +92,11 @@ export default function GroupsPage() {
 
   const handleCreateGroup = async (groupData: GroupDataType) => {
     try {
-      const { createGroup } = useGroup();
+      // Gunakan konteks grup yang sudah diambil di level komponen
+      const groupContext = useGroup();
       
       // Create the new group in Firebase
-      const groupId = await createGroup({
+      const groupId = await groupContext.createGroup({
         name: groupData.name,
         description: groupData.description,
         invites: groupData.invites || []
