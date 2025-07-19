@@ -10,7 +10,11 @@ import {
   sendPasswordResetEmail,
   updateProfile,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  signInAnonymously,
+  PhoneAuthProvider,
+  RecaptchaVerifier,
+  signInWithPhoneNumber
 } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
 import { 
@@ -34,6 +38,9 @@ interface AuthContextType {
   register: (email: string, password: string) => Promise<void>
   login: (email: string, password: string) => Promise<void>
   loginWithGoogle: () => Promise<void>
+  loginAnonymously: () => Promise<void>
+  startPhoneLogin: (phoneNumber: string) => Promise<string>
+  confirmPhoneLogin: (verificationId: string, code: string) => Promise<void>
   logout: () => Promise<void>
   resetPassword: (email: string) => Promise<void>
   updateUserProfile: (displayName: string, photoURL?: string) => Promise<void>
@@ -180,6 +187,110 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
+  async function loginAnonymously() {
+    try {
+      const { user } = await signInAnonymously(auth)
+      
+      try {
+        // Check if the user already exists in Firestore
+        const userRef = doc(db, 'users', user.uid)
+        const userDoc = await getDoc(userRef)
+        
+        if (!userDoc.exists()) {
+          // Create new user document if it doesn't exist
+          await createUser({
+            displayName: 'Anonymous User',
+            isAnonymous: true
+          })
+        }
+        
+        // Refresh user data
+        const updatedUserDoc = await getCurrentUser()
+        setUserData(updatedUserDoc)
+      } catch (firestoreError) {
+        console.error('Error with Firestore during anonymous login:', firestoreError)
+        // Create minimal user data if Firestore fails
+        setUserData({
+          id: user.uid,
+          displayName: 'Anonymous User',
+          isAnonymous: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        })
+      }
+      
+    } catch (error) {
+      console.error('Error during anonymous login:', error)
+      throw error
+    }
+  }
+
+  async function startPhoneLogin(phoneNumber: string) {
+    try {
+      // Setup reCAPTCHA verifier
+      const recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        'size': 'normal',
+        'callback': () => {
+          // reCAPTCHA solved, allow signInWithPhoneNumber.
+          console.log('reCAPTCHA verified');
+        },
+        'expired-callback': () => {
+          // Response expired. Ask user to solve reCAPTCHA again.
+          console.log('reCAPTCHA expired');
+        }
+      });
+      
+      const provider = new PhoneAuthProvider(auth);
+      const verificationId = await provider.verifyPhoneNumber(phoneNumber, recaptchaVerifier);
+      
+      // Destroy the reCAPTCHA
+      recaptchaVerifier.clear();
+      
+      return verificationId;
+    } catch (error) {
+      console.error('Error during phone number verification:', error);
+      throw error;
+    }
+  }
+
+  async function confirmPhoneLogin(verificationId: string, code: string) {
+    try {
+      const credential = PhoneAuthProvider.credential(verificationId, code);
+      const { user } = await signInWithPhoneNumber(auth, verificationId, code);
+      
+      try {
+        // Check if the user already exists in Firestore
+        const userRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userRef);
+        
+        if (!userDoc.exists()) {
+          // Create new user document if it doesn't exist
+          await createUser({
+            phoneNumber: user.phoneNumber || '',
+            displayName: 'Phone User',
+          });
+        }
+        
+        // Refresh user data
+        const updatedUserDoc = await getCurrentUser();
+        setUserData(updatedUserDoc);
+      } catch (firestoreError) {
+        console.error('Error with Firestore during phone login:', firestoreError);
+        // Create minimal user data if Firestore fails
+        setUserData({
+          id: user.uid,
+          phoneNumber: user.phoneNumber || '',
+          displayName: 'Phone User',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        });
+      }
+    } catch (error) {
+      console.error('Error during phone login confirmation:', error);
+      throw error;
+    }
+  }
+
   async function logout() {
     try {
       await signOut(auth)
@@ -238,6 +349,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     register, // Alias for compatibility  
     login,
     loginWithGoogle,
+    loginAnonymously,
+    startPhoneLogin,
+    confirmPhoneLogin,
     logout,
     resetPassword,
     updateUserProfile

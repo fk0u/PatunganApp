@@ -339,10 +339,22 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     if (!user) return null;
     
     try {
+      // Get user display info based on authentication type
+      let userDisplayName = "User";
+      if (user.displayName) {
+        userDisplayName = user.displayName;
+      } else if (user.email) {
+        userDisplayName = user.email;
+      } else if (user.phoneNumber) {
+        userDisplayName = user.phoneNumber;
+      } else if (user.isAnonymous) {
+        userDisplayName = "Anonymous User";
+      }
+      
       // Create the owner member object
       const ownerMember: Member = {
         id: user.uid,
-        displayName: user.displayName || user.email || "User",
+        displayName: userDisplayName,
         role: 'owner',
         status: 'active',
         joinedAt: Date.now(),
@@ -814,10 +826,22 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         return { ...group, id: groupDoc.id };
       }
       
+      // Get user display info based on authentication type
+      let userDisplayName = "User";
+      if (user.displayName) {
+        userDisplayName = user.displayName;
+      } else if (user.email) {
+        userDisplayName = user.email;
+      } else if (user.phoneNumber) {
+        userDisplayName = user.phoneNumber;
+      } else if (user.isAnonymous) {
+        userDisplayName = "Anonymous User";
+      }
+      
       // Create new member object
       const newMember: Member = {
         id: user.uid,
-        displayName: user.displayName || user.email || 'User',
+        displayName: userDisplayName,
         avatarUrl: user.photoURL || null,
         role: 'member',
         status: 'active',

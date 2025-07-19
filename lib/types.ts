@@ -1,8 +1,10 @@
 export interface User {
   id: string;
-  email: string;
+  email?: string;
+  phoneNumber?: string;
   displayName: string;
   photoURL?: string;
+  isAnonymous?: boolean;
   createdAt: number;
   updatedAt: number;
 }

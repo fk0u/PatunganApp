@@ -20,11 +20,7 @@ import {
   MessageSquareText,
   BarChart3,
   Users,
-  Share,
-  Mail,
-  X,
 } from "lucide-react"
-import QRCode from "react-qr-code"
 import { useAuth } from "@/contexts/AuthContext"
 import { BackgroundBeams } from "@/components/ui/background-beams"
 import { BorderBeam } from "@/components/ui/border-beam"
@@ -46,11 +42,7 @@ export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState<string>("")
   const [currentLocation, setCurrentLocation] = useState<string>("Mencari lokasi...")
   const [greeting, setGreeting] = useState<string>("")
-  const [showModeSelector, setShowModeSelector] = useState<boolean>(false)
-  const [selectedMode, setSelectedMode] = useState<"local" | "online" | null>(null)
   const [showScanOptions, setShowScanOptions] = useState<boolean>(false)
-  const [sessionLink, setSessionLink] = useState<string>("")
-  const [showShareDialog, setShowShareDialog] = useState<boolean>(false)
   
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
@@ -143,18 +135,6 @@ export default function DashboardPage() {
       // Store receipt data in sessionStorage for local session
       sessionStorage.setItem("localReceiptData", JSON.stringify(result))
       
-      // For online mode, generate a session link
-      if (selectedMode === "online") {
-        // Simulate creating an online session
-        setTimeout(() => {
-          const sessionId = generateRandomId();
-          // Use the actual URL of the current site rather than hardcoded domain
-          const baseUrl = window.location.origin;
-          const link = `${baseUrl}/s/${sessionId}`;
-          setSessionLink(link);
-          setShowShareDialog(true);
-        }, 1000);
-      }
     } catch (error) {
       console.error("Error processing receipt:", error)
       setError(error instanceof Error ? error.message : "Terjadi kesalahan saat memproses struk")
@@ -190,12 +170,7 @@ export default function DashboardPage() {
   }
 
   const handleProceedToLocal = () => {
-    if (selectedMode === "local") {
-      router.push("/local-session")
-    } else if (selectedMode === "online") {
-      // Show share dialog again if it was closed
-      setShowShareDialog(true)
-    }
+    router.push("/local-session")
   }
 
   const handleLogout = async () => {
@@ -319,7 +294,7 @@ export default function DashboardPage() {
           </HoverGlowCard>
 
           <HoverGlowCard
-            onClick={() => setShowModeSelector(true)}
+            onClick={() => router.push('/scan')}
             beamColor1="#8b5cf6"
             beamColor2="#06b6d4"
             animationDelay={0.3}
@@ -602,17 +577,8 @@ export default function DashboardPage() {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                   >
-                    {selectedMode === "local" ? (
-                      <>
-                        <span>Hitung Lokal</span>
-                        <ArrowRight className="h-5 w-5" />
-                      </>
-                    ) : (
-                      <>
-                        <span>Bagikan Link</span>
-                        <Share className="h-5 w-5" />
-                      </>
-                    )}
+                    <span>Hitung Lokal</span>
+                    <ArrowRight className="h-5 w-5" />
                   </motion.button>
                 </div>
               </motion.div>
@@ -620,66 +586,15 @@ export default function DashboardPage() {
           </AnimatePresence>
         </div>
 
-        {/* Mode Selector Dialog */}
-        <Dialog open={showModeSelector} onOpenChange={setShowModeSelector}>
-          <DialogContent className="bg-black/95 border border-white/10 text-white sm:max-w-lg">
-            <div className="p-6">
-              <h2 className="text-2xl font-bold mb-6 text-center">Pilih Mode Split Bill</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <motion.div
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => {
-                    setSelectedMode("local")
-                    setShowModeSelector(false)
-                    setShowScanOptions(true)
-                  }}
-                  className="relative p-6 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl cursor-pointer transition-all"
-                >
-                  <div className="w-12 h-12 mb-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
-                    <Users className="h-6 w-6 text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">Mode Lokal</h3>
-                  <p className="text-gray-400 text-sm">
-                    Hitung split bill di perangkat ini saja. Cocok untuk patungan langsung bersama teman.
-                  </p>
-                </motion.div>
-                
-                <motion.div
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => {
-                    setSelectedMode("online")
-                    setShowModeSelector(false)
-                    setShowScanOptions(true)
-                  }}
-                  className="relative p-6 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl cursor-pointer transition-all"
-                >
-                  <div className="w-12 h-12 mb-4 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
-                    <Share className="h-6 w-6 text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">Mode Online</h3>
-                  <p className="text-gray-400 text-sm">
-                    Bagikan link untuk split bill bersama. Teman tidak perlu membuat akun.
-                  </p>
-                </motion.div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-        
         {/* Scan Options Dialog */}
         <Dialog open={showScanOptions} onOpenChange={setShowScanOptions}>
           <DialogContent className="bg-black/95 border border-white/10 text-white sm:max-w-lg">
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-2 text-center">
-                Scan Struk {selectedMode === "local" ? "Lokal" : "Online"}
+                Scan Struk
               </h2>
               <p className="text-gray-400 text-sm text-center mb-6">
-                {selectedMode === "local" 
-                  ? "Split bill akan dihitung dan disimpan di perangkat ini saja" 
-                  : "Struk akan dapat diakses oleh teman melalui link"}
+                Pilih cara untuk mengunggah gambar struk
               </p>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -718,124 +633,6 @@ export default function DashboardPage() {
                     Foto struk langsung dengan kamera perangkat
                   </p>
                 </motion.div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-        
-        {/* Share Link Dialog */}
-        <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
-          <DialogContent className="bg-black/95 border border-white/10 text-white sm:max-w-lg">
-            <div className="p-6">
-              <h2 className="text-2xl font-bold mb-2 text-center">Bagikan Split Bill</h2>
-              <p className="text-gray-400 text-sm text-center mb-6">
-                Bagikan link ini kepada teman-teman untuk split bill bersama
-              </p>
-              
-              <div className="space-y-6">
-                {/* QR Code */}
-                <div className="flex flex-col items-center mb-4">
-                  <div className="mb-2 text-sm text-gray-400 font-medium">Pindai untuk membuka sesi</div>
-                  <div className="w-48 h-48 bg-white p-4 rounded-lg shadow-md border border-purple-100">
-                    {sessionLink ? (
-                      <div className="relative">
-                        <QRCode
-                          size={160}
-                          style={{ height: "auto", maxWidth: "100%", width: "100%" }}
-                          value={sessionLink}
-                          viewBox={`0 0 256 256`}
-                          fgColor="#8B5CF6"
-                          bgColor="#FFFFFF"
-                        />
-                        <div className="absolute bottom-1 right-1 bg-white p-1 rounded-sm">
-                          <div className="w-5 h-5 bg-gradient-to-r from-purple-500 to-blue-500 rounded-sm"></div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="w-full h-full bg-black/10 rounded grid place-items-center">
-                        <p className="text-gray-500 text-xs text-center px-4">QR Code akan ditampilkan di sini</p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-2 text-xs text-gray-500 text-center max-w-xs">
-                    Teman dapat bergabung dengan memindai QR code atau menggunakan tautan
-                  </div>
-                </div>
-                
-                {/* Link Copy */}
-                <div className="flex">
-                  <input
-                    type="text"
-                    value={sessionLink || `${window.location.origin}/s/EXAMPLE`}
-                    readOnly
-                    aria-label="Link share"
-                    title="Link share"
-                    className="flex-1 py-3 px-4 bg-white/5 border border-white/10 rounded-l-lg text-sm"
-                  />
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(sessionLink || `${window.location.origin}/s/EXAMPLE`);
-                      toast.success("Link disalin ke clipboard!");
-                    }}
-                    className="py-3 px-4 bg-gradient-to-r from-purple-500 to-blue-500 rounded-r-lg"
-                  >
-                    Salin
-                  </button>
-                </div>
-                
-                {/* Share Buttons */}
-                <div className="grid grid-cols-2 gap-3 mb-2">
-                  <button 
-                    className="flex items-center justify-center p-3 bg-green-500/20 hover:bg-green-500/30 rounded-lg transition-all"
-                    onClick={() => {
-                      if (sessionLink) {
-                        window.open(`https://wa.me/?text=${encodeURIComponent(`Yuk ikut patungan di ${sessionLink}`)}`, "_blank");
-                      }
-                    }}
-                  >
-                    <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center mb-2">
-                      <MessageSquareText className="h-5 w-5 text-white" />
-                    </div>
-                    <span className="text-xs text-white">WhatsApp</span>
-                  </button>
-                  <button 
-                    className="flex items-center justify-center p-3 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg transition-all"
-                    onClick={() => {
-                      if (sessionLink) {
-                        window.open(`https://t.me/share/url?url=${encodeURIComponent(sessionLink)}&text=${encodeURIComponent('Yuk ikut patungan!')}`, "_blank");
-                      }
-                    }}
-                  >
-                    <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center mb-2">
-                      <span className="text-white font-bold">t</span>
-                    </div>
-                    <span className="text-xs text-white">Telegram</span>
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 gap-3">
-                  <button 
-                    className="flex items-center justify-center p-3 bg-gray-500/20 hover:bg-gray-500/30 rounded-lg transition-all"
-                    onClick={() => {
-                      if (sessionLink) {
-                        window.open(`mailto:?subject=Undangan Patungan&body=Yuk ikut patungan di ${sessionLink}`, "_blank");
-                      }
-                    }}
-                  >
-                    <div className="w-10 h-10 bg-gray-500 rounded-full flex items-center justify-center mb-2">
-                      <Mail className="h-5 w-5 text-white" />
-                    </div>
-                    <span className="text-xs text-white">Email</span>
-                  </button>
-                </div>
-                
-                {/* Skip Button */}
-                <button 
-                  onClick={() => setShowShareDialog(false)}
-                  className="w-full mt-6 py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg flex items-center justify-center space-x-2 transition-all"
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  <span>Lewati</span>
-                </button>
               </div>
             </div>
           </DialogContent>

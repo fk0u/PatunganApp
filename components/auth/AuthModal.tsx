@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff, Mail, Lock, User as UserIcon, Chrome } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import AnonymousAuthButton from "@/components/auth/anon-auth-button";
+import PhoneAuthButton from "@/components/auth/phone-auth-button";
 import "./auth-modal.css";
 
 interface AuthModalProps {
@@ -216,6 +218,16 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   <Chrome className="h-5 w-5 mr-2" />
                   Lanjutkan dengan Google
                 </motion.button>
+                
+                {/* Phone Authentication */}
+                <div className="mt-2">
+                  <PhoneAuthButton />
+                </div>
+                
+                {/* Anonymous Authentication */}
+                <div className="mt-2">
+                  <AnonymousAuthButton />
+                </div>
               </form>
 
               {/* Toggle Auth Mode */}

@@ -19,13 +19,11 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
-import { useGroup } from '@/contexts/GroupContext';
 import { recognizeText, type OCRResult } from '@/lib/ocrService';
 
 export default function ScanPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { userGroups } = useGroup();
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -38,19 +36,12 @@ export default function ScanPage() {
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   
   useEffect(() => {
     if (!user) {
       router.push('/');
     }
   }, [user, router]);
-  
-  useEffect(() => {
-    if (userGroups.length > 0 && !selectedGroupId) {
-      setSelectedGroupId(userGroups[0].id);
-    }
-  }, [userGroups, selectedGroupId]);
   
   const startCamera = useCallback(async () => {
     try {
@@ -206,24 +197,38 @@ export default function ScanPage() {
   }, [ocrResult]);
   
   const saveAndContinue = useCallback(() => {
-    if (!ocrResult || !selectedGroupId) {
-      toast.error('Pilih grup untuk melanjutkan');
+    if (!ocrResult) {
+      toast.error('Tidak ada data hasil scan');
       return;
     }
     
-    // Save the receipt data to session storage for the next page
-    sessionStorage.setItem('receiptData', JSON.stringify({
-      items: ocrResult.items || [],
-      total: ocrResult.total || 0,
-      merchant: ocrResult.merchant || 'Toko',
-      date: ocrResult.date || new Date().toLocaleDateString(),
-      groupId: selectedGroupId,
-      receiptImage: capturedImage
-    }));
+    // Simpan data untuk mode lokal
+    const localReceiptData = {
+      restaurant_info: {
+        name: ocrResult.merchant || 'Toko',
+        date: ocrResult.date || new Date().toLocaleDateString(),
+        time: new Date().toLocaleTimeString(),
+      },
+      items: ocrResult.items ? ocrResult.items.map(item => ({
+        name: item.name,
+        quantity: item.quantity || 1,
+        unit_price: item.price,
+        total_price: (item.quantity || 1) * item.price,
+        category_guess: 'other',
+        sharing_potential: 0.5
+      })) : [],
+      summary: {
+        subtotal: ocrResult.total || 0,
+        total: ocrResult.total || 0
+      }
+    };
     
-    // Navigate to the bill split page
-    router.push('/dashboard/split-bill');
-  }, [ocrResult, selectedGroupId, router, capturedImage]);
+    // Simpan ke session storage
+    sessionStorage.setItem('localReceiptData', JSON.stringify(localReceiptData));
+    
+    // Langsung navigasi ke halaman local-session
+    router.push('/local-session');
+  }, [ocrResult, router]);
   
   useEffect(() => {
     if (!isCameraOpen && !capturedImage && !ocrResult) {
@@ -416,22 +421,6 @@ export default function ScanPage() {
                       <div>
                         <p className="text-xs text-gray-400">Toko</p>
                         <p className="text-sm">{ocrResult.merchant || '-'}</p>
-                      </div>
-                      
-                      <div>
-                        <p className="text-xs text-gray-400">Pilih Grup</p>
-                        <select
-                          className="w-full mt-1 p-2 bg-gray-800 border border-gray-700 rounded-md text-sm"
-                          value={selectedGroupId || ''}
-                          onChange={(e) => setSelectedGroupId(e.target.value)}
-                          aria-label="Pilih Grup"
-                        >
-                          {userGroups.map(group => (
-                            <option key={group.id} value={group.id}>
-                              {group.name}
-                            </option>
-                          ))}
-                        </select>
                       </div>
                     </div>
                   </div>

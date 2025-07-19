@@ -12,6 +12,8 @@ import { motion } from "framer-motion"
 import { Separator } from "@/components/ui/separator"
 import { Eye, EyeOff, Mail, Lock, User as UserIcon, ArrowRight } from "lucide-react"
 import { BackgroundBeams } from "@/components/ui/background-beams"
+import AnonymousAuthButton from "@/components/auth/anon-auth-button"
+import PhoneAuthButton from "@/components/auth/phone-auth-button"
 import "./auth-page.css"
 
 export default function AuthPage() {
@@ -195,6 +197,16 @@ export default function AuthPage() {
                 </svg>
                 <span>{googleLoading ? "Processing..." : "Lanjutkan dengan Google"}</span>
               </motion.button>
+              
+              {/* Phone Authentication Button */}
+              <div className="mt-2">
+                <PhoneAuthButton />
+              </div>
+              
+              {/* Anonymous Authentication Button */}
+              <div className="mt-2">
+                <AnonymousAuthButton />
+              </div>
             </div>
           </Tabs>
         </CardContent>

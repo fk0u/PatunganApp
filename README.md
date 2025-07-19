@@ -13,7 +13,6 @@ Patungan adalah aplikasi inovatif yang dirancang untuk menyederhanakan proses pe
 ## ✨ Fitur Utama
 
 - **Scan Struk Cerdas**: Manfaatkan kekuatan AI (Google Gemini) untuk secara otomatis mengekstrak detail item, harga, pajak, dan total dari foto struk.
-- **Mode Split Bill**: Pilih antara mode lokal (perangkat ini saja) atau mode online (bagikan dengan link) untuk pembagian tagihan.
 - **Pembagian Fleksibel**: Mudah mengklaim item personal atau membagi item yang bisa dibagi dengan porsi yang disesuaikan antar peserta.
 - **Input Item Manual**: Tambahkan item secara manual ke sesi pembagian tagihan, dengan opsi untuk mengklaim atau membagi porsi.
 - **Manajemen Transaksi**: Lacak dan kelola transaksi yang tertunda dan selesai antar peserta.
@@ -82,7 +81,7 @@ yarn build
 
 ## 📱 Penggunaan
 
-1. **Scan Struk**: Di dashboard, pilih "Scan Struk" dan tentukan mode (Lokal/Online).
+1. **Scan Struk**: Di dashboard, pilih "Scan Struk" untuk mengambil foto struk.
 2. **Upload Struk**: Upload foto struk dari galeri atau ambil foto dengan kamera.
 3. **Proses AI**: AI akan memproses struk dan mengekstrak informasi.
 4. **Sesi Split Bill**: 
