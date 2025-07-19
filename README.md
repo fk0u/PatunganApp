@@ -3,7 +3,7 @@
 <div align="center">
   <img src="public/placeholder-logo.svg" alt="Patungan Logo" width="120" />
   <h3>Patungan App</h3>
-  <p>Platform Split Bill Modern dengan Teknologi AI</p>
+  <p>Bayar Bersama, Tanpa Ribet</p>
 </div>
 
 ## 📋 Deskripsi
